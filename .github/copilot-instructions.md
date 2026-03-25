@@ -12,16 +12,19 @@ Su responsabilidad es:
 - delegar autenticación/autorización a Kong + Keycloak.
 
 ## Objetivo actual del sprint
-Estamos desarrollando **D1** del Sprint 1.
+Estamos desarrollando **D2** del Sprint 1 (El D1 con Docker Compose base y Redis ha sido completado).
 
 ### Tareas actuales
-1. Configurar Docker Compose base
-2. Configurar Redis
+1. Configurar Elasticsearch
+2. Definir mapping base de `SearchDocument`
+
+### Modelo de Datos (SearchDocument)
+El documento derivado de eventos (no almacenar entidades transaccionales completas) debe contener al menos:
+- `productId`, `name`, `description`, `category`, `price`, `rating`, `available`, `brand`
 
 Todavía **no** implementar:
 - lógica completa de búsqueda;
 - consumers RabbitMQ;
-- mappings finales de Elasticsearch;
 - Kong con configuración avanzada;
 - integración completa con Keycloak;
 - observabilidad;

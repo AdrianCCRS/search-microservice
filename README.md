@@ -40,6 +40,19 @@ El servicio sigue los principios de **Clean Architecture** y está separado en l
    docker-compose ps
    ```
 
+5. Interactuar con Redis
+   Para comprobar que Redis se está ejecutando y requiere autenticación, puedes entrar a su CLI:
+   ```bash
+   docker exec -it search_redis redis-cli
+   ```
+   Una vez dentro, ingresa la contraseña definida en tu `.env` (o la por defecto `redis_secure_pass_123`):
+   ```text
+   127.0.0.1:6379> AUTH redis_secure_pass_123
+   OK
+   127.0.0.1:6379> PING
+   PONG
+   ```
+
 ## Estructura del Repositorio
 
 - `src/` - Código fuente organizado por capas.
