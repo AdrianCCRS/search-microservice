@@ -14,9 +14,17 @@ services:
   #     - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
   #     - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secure_pass_123}
   #     - SPRING_ELASTICSEARCH_URIS=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+  #     - SPRING_RABBITMQ_HOST=rabbitmq
+  #     - SPRING_RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+  #     - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER:-guest}
+  #     - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
   #   depends_on:
-  #     - redis
-  #     - elasticsearch
+  #     redis:
+  #       condition: service_healthy
+  #     elasticsearch:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
   #   networks:
   #     - search-network
 
@@ -33,10 +41,37 @@ services:
     command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
     networks:
       - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
 
 # Placeholder for upcoming services
-# RabbitMQ, Kong, Keycloak...
+# Kong, Keycloak...
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: search_rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: always
 
   # Elasticsearch
   elasticsearch:
@@ -52,11 +87,18 @@ services:
       - elasticsearch_data:/usr/share/elasticsearch/data
     networks:
       - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost:9200 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: always
 
 volumes:
   redis_data:
   elasticsearch_data:
+  rabbitmq_data:
 
 networks:
   search-network:
