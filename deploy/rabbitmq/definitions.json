@@ -1,0 +1,65 @@
+{
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "catalog.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "search.dead.letter",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "search.product.created",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "search.dead.letter"
+      }
+    },
+    {
+      "name": "search.product.updated",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-dead-letter-exchange": "",
+        "x-dead-letter-routing-key": "search.dead.letter"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "catalog.events",
+      "vhost": "/",
+      "destination": "search.product.created",
+      "destination_type": "queue",
+      "routing_key": "product.created",
+      "arguments": {}
+    },
+    {
+      "source": "catalog.events",
+      "vhost": "/",
+      "destination": "search.product.updated",
+      "destination_type": "queue",
+      "routing_key": "product.updated",
+      "arguments": {}
+    }
+  ]
+}
