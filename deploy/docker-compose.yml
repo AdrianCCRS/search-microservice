@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  # Search Microservice
+  # search-api:
+  #   build:
+  #     context: ../
+  #     dockerfile: src/SearchService.Presentation/Dockerfile
+  #   ports:
+  #     - "5000:80"
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Development
+  #     - Redis__ConnectionString=${REDIS_CONNECTION_STRING}
+  #   depends_on:
+  #     - redis
+  #   networks:
+  #     - search-network
+
+  # Redis Cache
+  redis:
+    image: redis:7.0-alpine
+    container_name: search_redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    networks:
+      - search-network
+    restart: always
+
+# Placeholder for upcoming services
+# Elasticsearch, RabbitMQ, Kong, Keycloak...
+
+volumes:
+  redis_data:
+
+networks:
+  search-network:
+    driver: bridge
