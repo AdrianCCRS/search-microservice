@@ -11,10 +11,14 @@ El servicio sigue los principios de **Clean Architecture** y está separado en l
 - `SearchService.Presentation`
 
 ## Tecnologías Principales (Sprint 1)
+- Java 17 & Spring Boot 3.1
 - Docker & Docker Compose
-- Redis (Caché)
+- Redis 7.0 (Caché)
+- RabbitMQ 3.12 (Mensajería dirigida por eventos - Topic Exchange & DLQ)
+- Elasticsearch 8.11 (Motor principal de búsqueda)
+- MongoDB 6.0 (Base de datos del servicio de lectura)
 
-*(Próximamente: RabbitMQ, Elasticsearch, Kong, Keycloak)*
+*(Próximamente: Kong, Keycloak)*
 
 ## Arranque Local
 
@@ -29,18 +33,32 @@ El servicio sigue los principios de **Clean Architecture** y está separado en l
    cd deploy
    cp .env.example .env
    ```
+   *Nota: edita `.env` con las contraseñas requeridas, por defecto en local puedes usar los valores de ejemplo.*
 
-3. Levanta los servicios base (Redis por ahora)
+3. Levanta los servicios completos y compila la API
    ```bash
-   docker-compose up -d
+   cd deploy
+   docker compose up -d --build
    ```
+   **Este comando:**
+   - Levantará los contenedores de Redis, MongoDB, Elasticsearch y RabbitMQ.
+   - Compilará tu código Java Spring Boot con Maven usando un contenedor de primera fase.
+   - Creará y arrancará el contenedor `deploy-search-api` (expuesto en puerto local `8085`).
 
 4. Verifica el estado
    ```bash
-   docker-compose ps
+   docker compose ps
+   ```
+   O supervisa los logs en tiempo real de la API de Search:
+   ```bash
+   docker compose logs -f search-api
    ```
 
-5. Interactuar con Redis
+5. Interactuar con RabbitMQ (Mensajería)
+   - Panel de Control Web: `http://localhost:15672` (Usuario: `guest`, Password: `guest`)
+   - Revisa aquí las colas `search.product.created` y `search.product.updated`.
+
+6. Interactuar con Redis
    Para comprobar que Redis se está ejecutando y requiere autenticación, puedes entrar a su CLI:
    ```bash
    docker exec -it search_redis redis-cli
