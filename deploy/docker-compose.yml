@@ -2,31 +2,34 @@ version: '3.8'
 
 services:
   # Search Microservice
-  # search-api:
-  #   build:
-  #     context: ../
-  #     dockerfile: src/SearchService.Presentation/Dockerfile
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=dev
-  #     - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
-  #     - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
-  #     - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secure_pass_123}
-  #     - SPRING_ELASTICSEARCH_URIS=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
-  #     - SPRING_RABBITMQ_HOST=rabbitmq
-  #     - SPRING_RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
-  #     - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER:-guest}
-  #     - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #     elasticsearch:
-  #       condition: service_healthy
-  #     rabbitmq:
-  #       condition: service_healthy
-  #   networks:
-  #     - search-network
+  search-api:
+    build:
+      context: ../
+      dockerfile: src/SearchService.Presentation/Dockerfile
+    ports:
+      - "8085:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
+      - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secure_pass_123}
+      - SPRING_ELASTICSEARCH_URIS=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER:-guest}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
+      - SPRING_DATA_MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/search_db}
+    depends_on:
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - search-network
 
   # Redis Cache
   redis:
@@ -43,6 +46,25 @@ services:
       - search-network
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # MongoDB
+  mongodb:
+    image: mongo:6.0
+    container_name: search_mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=search_db
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - search-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
       interval: 10s
       timeout: 5s
       retries: 5
@@ -101,6 +123,7 @@ volumes:
   redis_data:
   elasticsearch_data:
   rabbitmq_data:
+  mongodb_data:
 
 networks:
   search-network:
