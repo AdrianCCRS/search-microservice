@@ -1,20 +1,39 @@
 package domain.entities;
 
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 import java.math.BigDecimal;
 
 /**
  * Representa el documento derivado optimizado para indexación y búsqueda rápida (Read Model en CQRS).
  * Esta entidad no refleja datos transaccionales crudos de forma directa.
  */
+@Document(indexName = "products") // Nombre del índice en Elasticsearch
 public class SearchDocument {
     
+    @Field(type = FieldType.Keyword)
     private String productId;
+
+    @Field(type = FieldType.Text)
     private String name;
+
+    @Field(type = FieldType.Text)
     private String description;
+
+    @Field(type = FieldType.Keyword)
     private String category;
+
+    @Field(type = FieldType.Double)
     private BigDecimal price;
+
+    @Field(type = FieldType.Double)
     private Double rating;
+
+    @Field(type = FieldType.Boolean)
     private Boolean available;
+
+    @Field(type = FieldType.Keyword)
     private String brand;
 
     // Constructores
