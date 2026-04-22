@@ -1,4 +1,4 @@
-package SearchService.Infrastructure.elasticsearch;
+package infrastructure.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.IndexRequest;
@@ -9,7 +9,7 @@ import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 
 import org.springframework.stereotype.Repository;
 
-import SearchService.Domain.entities.SearchDocument;
+import domain.entities.SearchDocument;
 
 @Repository
 public class ElasticsearchSearchRepository {

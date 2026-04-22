@@ -1,4 +1,4 @@
-package SearchService.Infrastructure.elasticsearch.config;
+package infrastructure.elasticsearch.config;
 
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
@@ -6,10 +6,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch.indices.ExistsRequest;
-import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
-import co.elastic.clients.elasticsearch.indices.ExistsResponse;
-
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -29,15 +25,16 @@ public class ElasticsearchIndexInitializer {
 
     @EventListener(ApplicationReadyEvent.class)
     public void initializeIndex() throws Exception {
-        ExistsResponse existsResponse = elasticsearchClient.indices()
-            .exists(e -> e.index(indexName));
+        boolean indexExists = elasticsearchClient.indices()
+            .exists(e -> e.index(indexName))
+            .value();
 
-        if (!existsResponse.value()) {
+        if (!indexExists) {
             elasticsearchClient.indices().create(c -> c
                 .index(indexName)
                 .settings(s -> s
-                    .numberOfShards(shards)
-                    .numberOfReplicas(replicas)
+                    .numberOfShards(String.valueOf(shards))
+                    .numberOfReplicas(String.valueOf(replicas))
                 )
             );
             System.out.println("Índice '" + indexName + "' creado correctamente en Elasticsearch.");

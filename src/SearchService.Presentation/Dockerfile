@@ -17,7 +17,7 @@ WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-COPY --from=builder /app/target/*.jar app.jar
+COPY --from=builder /app/target/search-microservice-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
