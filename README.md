@@ -5,10 +5,10 @@ Este repositorio implementa el **Search Microservice** del sistema de e-commerce
 ## Arquitectura
 
 El servicio sigue los principios de **Clean Architecture** y está separado en las siguientes capas:
-- `SearchService.Domain`
-- `SearchService.Application`
-- `SearchService.Infrastructure`
-- `SearchService.Presentation`
+- `domain`
+- `application`
+- `infrastructure`
+- `presentation`
 
 ## Tecnologías Principales (Sprint 1)
 - Java 17 & Spring Boot 3.1
@@ -18,7 +18,7 @@ El servicio sigue los principios de **Clean Architecture** y está separado en l
 - Elasticsearch 8.11 (Motor principal de búsqueda)
 - MongoDB 6.0 (Base de datos del servicio de lectura)
 
-*(Próximamente: Kong, Keycloak)*
+Tambien incluye Kong como API Gateway y Keycloak como proveedor de identidad para el entorno local.
 
 ## Arranque Local
 
@@ -73,7 +73,9 @@ El servicio sigue los principios de **Clean Architecture** y está separado en l
 
 ## Estructura del Repositorio
 
-- `src/` - Código fuente organizado por capas.
-- `tests/` - Pruebas unitarias y de integración.
+- `src/main/java/` - Codigo fuente Spring Boot organizado por capas.
+- `src/main/resources/` - Configuracion de la aplicacion.
+- `src/test/java/` - Pruebas unitarias y de integracion.
+- `Dockerfile` - Imagen principal del microservicio Search.
 - `deploy/` - Archivos para despliegue (Docker, Kong, etc.).
 - `docs/` - Documentación del proyecto.
