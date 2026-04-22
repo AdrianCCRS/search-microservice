@@ -1,0 +1,178 @@
+services:
+  # Search Microservice
+  search-api:
+    build:
+      context: ../
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATA_REDIS_HOST=${REDIS_HOST:-redis}
+      - SPRING_DATA_REDIS_PORT=${REDIS_PORT:-6379}
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD:-redis_secure_pass_123}
+      - SPRING_ELASTICSEARCH_URIS=${ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=${RABBITMQ_PORT:-5672}
+      - SPRING_RABBITMQ_USERNAME=${RABBITMQ_USER:-guest}
+      - SPRING_RABBITMQ_PASSWORD=${RABBITMQ_PASS:-guest}
+      - SPRING_DATA_MONGODB_URI=${MONGODB_URI:-mongodb://mongodb:27017/search_db}
+    depends_on:
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - search-network
+
+  # Redis Cache
+  redis:
+    image: redis:7.0-alpine
+    container_name: search_redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a $${REDIS_PASSWORD} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # MongoDB
+  mongodb:
+    image: mongo:6.0
+    container_name: search_mongodb
+    environment:
+      - MONGO_INITDB_DATABASE=search_db
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - search-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+# Placeholder for upcoming services
+# Kong, Keycloak...
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: search_rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-guest}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro,z
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro,z
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: always
+
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: search_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "${ELASTICSEARCH_PORT:-9200}:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsSL http://localhost:9200 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: always
+
+    # Kong API Gateway (DB-less mode)
+  kong:
+    image: kong:3.5
+    container_name: search_kong
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/kong/kong.yml
+      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      - KONG_LOG_LEVEL=warn
+    ports:
+      - "${KONG_PROXY_PORT:-8000}:8000"
+      - "${KONG_ADMIN_PORT:-8001}:8001"
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro,z
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: always
+ 
+  # Keycloak Identity Provider
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: search_keycloak
+    command: start-dev --import-realm
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=dev-mem
+      - KC_HEALTH_ENABLED=true
+      - KC_LOG_LEVEL=warn
+    ports:
+      - "${KEYCLOAK_PORT:-8081}:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json:ro,z
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: always
+
+volumes:
+  redis_data:
+  elasticsearch_data:
+  rabbitmq_data:
+  mongodb_data:
+
+networks:
+  search-network:
+    driver: bridge

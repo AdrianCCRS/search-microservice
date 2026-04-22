@@ -1,0 +1,44 @@
+{
+  "realm": "ecommerce",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      {
+        "name": "ROLE_CLIENT",
+        "description": "Permite realizar búsquedas de productos"
+      },
+      {
+        "name": "ROLE_ADMIN",
+        "description": "Reservado para Catalog Service - indexación de productos"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "search-service",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpassword",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ROLE_CLIENT"
+      ]
+    }
+  ]
+}

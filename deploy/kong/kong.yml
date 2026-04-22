@@ -1,0 +1,20 @@
+_format_version: "3.0"
+_transform: true
+ 
+services:
+  - name: search-service
+    url: http://search-api:8080
+    routes:
+      - name: search-route
+        methods: [GET]
+        paths:
+          - /api/search
+      - name: products-search-route
+        methods: [GET]
+        paths:
+          - /api/v1/products/search
+      - name: suggest-route
+        methods: [GET]
+        paths:
+          - /api/search/suggest
+ 
