@@ -1,85 +1,79 @@
 package infrastructure.redis;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import java.util.Collection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
+@SuppressWarnings({"unchecked", "rawtypes"})
 class RedisInvalidateCacheUseCaseTest {
 
     private StringRedisTemplate redisTemplate;
+    private RedisSearchCacheRepository cacheRepository;
     private RedisInvalidateCacheUseCase useCase;
 
     @BeforeEach
     void setUp() {
         redisTemplate = org.mockito.Mockito.mock(StringRedisTemplate.class);
-        useCase = new RedisInvalidateCacheUseCase(redisTemplate);
+        cacheRepository = org.mockito.Mockito.mock(RedisSearchCacheRepository.class);
+        useCase = new RedisInvalidateCacheUseCase(redisTemplate, cacheRepository);
         ReflectionTestUtils.setField(useCase, "productKeyPrefix", "search:product:");
         ReflectionTestUtils.setField(useCase, "queryKeyPattern", "search:query:*");
+        ReflectionTestUtils.setField(useCase, "suggestKeyPattern", "search:suggest:*");
         ReflectionTestUtils.setField(useCase, "scanCount", 1000L);
     }
 
     @Test
-    void executeDeletesProductAndQueryCacheKeys() throws Exception {
-        Cursor<String> cursor = mockCursor();
-        when(cursor.hasNext()).thenReturn(true, true, false);
-        when(cursor.next()).thenReturn("search:query:name:phone", "search:query:category:tech");
-        when(redisTemplate.scan(org.mockito.ArgumentMatchers.any(ScanOptions.class))).thenReturn(cursor);
-        when(redisTemplate.delete(org.mockito.ArgumentMatchers.<Collection<String>>any())).thenReturn(3L);
+    void executeDeletesProductQueryAndSuggestionCacheKeys() throws Exception {
+        Cursor<String> queryCursor = mockCursor();
+        when(queryCursor.hasNext()).thenReturn(true, false);
+        when(queryCursor.next()).thenReturn("search:query:abc123");
+
+        Cursor<String> suggestCursor = mockCursor();
+        when(suggestCursor.hasNext()).thenReturn(true, false);
+        when(suggestCursor.next()).thenReturn("search:suggest:phone");
+
+        when(redisTemplate.scan(any(ScanOptions.class))).thenReturn(queryCursor, suggestCursor);
 
         useCase.execute("123");
 
-        ArgumentCaptor<Collection<String>> keysCaptor = collectionCaptor();
-        verify(redisTemplate).delete(keysCaptor.capture());
-
-        Collection<String> deletedKeys = keysCaptor.getValue();
-        assertTrue(deletedKeys.contains("search:product:123"));
-        assertTrue(deletedKeys.contains("search:query:name:phone"));
-        assertTrue(deletedKeys.contains("search:query:category:tech"));
-        assertEquals(3, deletedKeys.size());
+        verify(cacheRepository).delete("search:product:123");
+        verify(cacheRepository).delete("search:query:abc123");
+        verify(cacheRepository).delete("search:suggest:phone");
     }
 
     @Test
-    void executeDeletesOnlyProductKeyWhenNoQueryKeysExist() throws Exception {
-        Cursor<String> cursor = mockCursor();
-        when(cursor.hasNext()).thenReturn(false);
-        when(redisTemplate.scan(org.mockito.ArgumentMatchers.any(ScanOptions.class))).thenReturn(cursor);
-        when(redisTemplate.delete(org.mockito.ArgumentMatchers.<Collection<String>>any())).thenReturn(1L);
+    void executeDeletesOnlyProductKeyWhenNoSearchKeysExist() throws Exception {
+        Cursor<String> queryCursor = mockCursor();
+        when(queryCursor.hasNext()).thenReturn(false);
+
+        Cursor<String> suggestCursor = mockCursor();
+        when(suggestCursor.hasNext()).thenReturn(false);
+
+        when(redisTemplate.scan(any(ScanOptions.class))).thenReturn(queryCursor, suggestCursor);
 
         useCase.execute("123");
 
-        ArgumentCaptor<Collection<String>> keysCaptor = collectionCaptor();
-        verify(redisTemplate).delete(keysCaptor.capture());
-
-        Collection<String> deletedKeys = keysCaptor.getValue();
-        assertTrue(deletedKeys.contains("search:product:123"));
-        assertEquals(1, deletedKeys.size());
+        verify(cacheRepository).delete("search:product:123");
     }
 
     @Test
     void executeRejectsBlankProductId() {
         assertThrows(IllegalArgumentException.class, () -> useCase.execute(" "));
 
-        verify(redisTemplate, never()).scan(org.mockito.ArgumentMatchers.any(ScanOptions.class));
+        verify(redisTemplate, never()).scan(any(ScanOptions.class));
+        verifyNoInteractions(cacheRepository);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private ArgumentCaptor<Collection<String>> collectionCaptor() {
-        return ArgumentCaptor.forClass(Collection.class);
-    }
-
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private Cursor<String> mockCursor() {
         return org.mockito.Mockito.mock(Cursor.class);
     }

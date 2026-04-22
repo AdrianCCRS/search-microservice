@@ -17,12 +17,16 @@ import org.springframework.stereotype.Service;
 public class RedisInvalidateCacheUseCase implements InvalidateCacheUseCase {
 
     private final StringRedisTemplate redisTemplate;
+    private final RedisSearchCacheRepository cacheRepository;
 
     @Value("${search.cache.redis.product-key-prefix:search:product:}")
     private String productKeyPrefix;
 
     @Value("${search.cache.redis.query-key-pattern:search:query:*}")
     private String queryKeyPattern;
+
+    @Value("${search.cache.redis.suggest-key-pattern:search:suggest:*}")
+    private String suggestKeyPattern;
 
     @Value("${search.cache.redis.scan-count:1000}")
     private long scanCount;
@@ -35,17 +39,18 @@ public class RedisInvalidateCacheUseCase implements InvalidateCacheUseCase {
 
         Set<String> keysToDelete = new HashSet<>();
         keysToDelete.add(productKeyPrefix + productId);
-        keysToDelete.addAll(scanQueryCacheKeys());
+        keysToDelete.addAll(scanCacheKeys(queryKeyPattern));
+        keysToDelete.addAll(scanCacheKeys(suggestKeyPattern));
 
-        Long deletedKeys = redisTemplate.delete(keysToDelete);
-        log.info("Invalidated {} Redis cache keys for product {}", deletedKeys != null ? deletedKeys : 0, productId);
+        keysToDelete.forEach(cacheRepository::delete);
+        log.info("Invalidated {} Redis cache keys for product {}", keysToDelete.size(), productId);
     }
 
-    private Set<String> scanQueryCacheKeys() {
+    private Set<String> scanCacheKeys(String pattern) {
         Set<String> keys = new HashSet<>();
         ScanOptions options = ScanOptions.scanOptions()
-                .match(queryKeyPattern)
-                .count(scanCount)
+                .match(pattern)
+                .count(Math.max(scanCount, 1))
                 .build();
 
         try (Cursor<String> cursor = redisTemplate.scan(options)) {
