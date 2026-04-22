@@ -1,4 +1,4 @@
-package SearchService.Infrastructure.elasticsearch;
+package infrastructure.elasticsearch;
 
 import application.events.ProductData;
 import application.usecases.IndexProductUseCase;
