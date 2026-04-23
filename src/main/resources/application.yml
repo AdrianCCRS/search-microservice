@@ -1,7 +1,13 @@
 spring:
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URI:http://localhost:9200}
   data:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/search_db}
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
