@@ -36,6 +36,8 @@ public class SearchDocument {
     @Field(type = FieldType.Keyword)
     private String brand;
 
+    private Double score;
+
     // Constructores
     public SearchDocument() {}
 
@@ -75,4 +77,7 @@ public class SearchDocument {
 
     public String getBrand() { return brand; }
     public void setBrand(String brand) { this.brand = brand; }
+
+    public Double getScore() { return score; }
+    public void setScore(Double score) { this.score = score; }
 }
