@@ -64,6 +64,7 @@ public class ElasticsearchSearchRepository {
                     .query(q -> q.multiMatch(m -> m
                             .query(query)
                             .fields("name^3", "description", "category", "brand")
+                            .fuzziness("AUTO")
                     )),
                     SearchDocument.class
             );
