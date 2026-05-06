@@ -1,9 +1,8 @@
 package application.usecases;
 
-import domain.entities.SearchDocument;
+import infrastructure.elasticsearch.ElasticsearchSearchRepository.SearchResult;
 import domain.queries.SearchQuery;
-import java.util.List;
 
 public interface SearchProductsUseCase {
-    List<SearchDocument> execute(SearchQuery query);
+    SearchResult execute(SearchQuery query);
 }

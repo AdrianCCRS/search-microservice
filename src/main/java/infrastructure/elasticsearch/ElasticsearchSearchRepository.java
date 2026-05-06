@@ -10,8 +10,6 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.json.JsonData;
@@ -65,9 +63,21 @@ public class ElasticsearchSearchRepository {
         }
     }
 
-    public List<SearchDocument> search(SearchQuery query) {
+    /**
+     * Ejecuta una búsqueda filtrada y paginada.
+     * Retorna cada resultado con su score de relevancia de Elasticsearch.
+     */
+    public SearchResult search(SearchQuery query) {
         try {
-            SearchRequest.Builder searchBuilder = new SearchRequest.Builder().index(indexName);
+            int page = query.getPage() != null ? query.getPage() : 0;
+            int pageSize = query.getPageSize() != null ? query.getPageSize() : 10;
+            int from = page * pageSize;
+
+            SearchRequest.Builder searchBuilder = new SearchRequest.Builder()
+                .index(indexName)
+                .from(from)
+                .size(pageSize)
+                .trackTotalHits(t -> t.enabled(true));
 
             BoolQuery.Builder boolQueryBuilder = new BoolQuery.Builder();
             boolean hasFilters = false;
@@ -129,19 +139,10 @@ public class ElasticsearchSearchRepository {
             }
 
             if (query.getSortBy() != null && !query.getSortBy().trim().isEmpty()) {
-                String sortField = query.getSortBy();
-                if ("popularity".equalsIgnoreCase(sortField)) {
-                    sortField = "rating";
-                }
-                
-                SortOrder sortOrder = SortOrder.Asc;
-                if ("desc".equalsIgnoreCase(query.getSortDirection())) {
-                    sortOrder = SortOrder.Desc;
-                }
-                
+                String sortField = "popularity".equalsIgnoreCase(query.getSortBy()) ? "rating" : query.getSortBy();
+                SortOrder sortOrder = "desc".equalsIgnoreCase(query.getSortDirection()) ? SortOrder.Desc : SortOrder.Asc;
                 final String finalSortField = sortField;
                 final SortOrder finalSortOrder = sortOrder;
-                
                 searchBuilder.sort(s -> s
                     .field(f -> f
                         .field(finalSortField)
@@ -152,15 +153,51 @@ public class ElasticsearchSearchRepository {
 
             SearchResponse<SearchDocument> response = client.search(searchBuilder.build(), SearchDocument.class);
 
-            List<SearchDocument> results = new ArrayList<>();
+            long total = response.hits().total() != null ? response.hits().total().value() : 0;
+            List<SearchResultItem> items = new ArrayList<>();
             for (Hit<SearchDocument> hit : response.hits().hits()) {
-                results.add(hit.source());
+                double score = hit.score() != null ? hit.score() : 0.0;
+                items.add(new SearchResultItem(hit.source(), score));
             }
-            return results;
+            return new SearchResult(total, page, pageSize, items);
 
         } catch (ElasticsearchException | IOException e) {
             System.err.println("Error ejecutando busqueda: " + e.getMessage());
             throw new RuntimeException(e);
         }
+    }
+
+    /** Encapsula el resultado total de una búsqueda con metadatos de paginación. */
+    public static class SearchResult {
+        private final long total;
+        private final int page;
+        private final int pageSize;
+        private final List<SearchResultItem> items;
+
+        public SearchResult(long total, int page, int pageSize, List<SearchResultItem> items) {
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+            this.items = items;
+        }
+
+        public long getTotal() { return total; }
+        public int getPage() { return page; }
+        public int getPageSize() { return pageSize; }
+        public List<SearchResultItem> getItems() { return items; }
+    }
+
+    /** Encapsula un documento junto con su score de relevancia de Elasticsearch. */
+    public static class SearchResultItem {
+        private final SearchDocument document;
+        private final double score;
+
+        public SearchResultItem(SearchDocument document, double score) {
+            this.document = document;
+            this.score = score;
+        }
+
+        public SearchDocument getDocument() { return document; }
+        public double getScore() { return score; }
     }
 }
