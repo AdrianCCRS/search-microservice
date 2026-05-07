@@ -51,7 +51,7 @@ class SearchControllerWebMvcTest {
             "p1", "Test", "Desc", "cat", BigDecimal.TEN, 4.5, true, "brand"
         );
         when(searchProductsUseCase.execute(any(SearchQuery.class)))
-            .thenReturn(new SearchPageResult(42L, 0, 10, List.of(doc)));
+            .thenReturn(new SearchPageResult(42L, 0, 10, null, List.of(doc)));
 
         mockMvc.perform(get("/api/v1/products/search")
                 .param("page", "0")
