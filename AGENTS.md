@@ -5,6 +5,11 @@
 - This service is the CQRS read model: it consumes Catalog product events, builds `SearchDocument`s, indexes them in Elasticsearch, caches frequent reads in Redis, and exposes search APIs through Kong.
 - Do not treat this service as the transactional source of truth; Catalog owns product writes.
 
+## AI agent operational mode
+- Work in build mode unless the user explicitly asks for planning, review, or analysis only.
+- Agents are permitted to make file changes, run shell commands, and use available tools to complete requested implementation tasks.
+- Prefer Docker-based commands for validation in this repository when local tooling such as Maven is unavailable.
+
 ## Scope and stack
 - Single-module Maven project (`pom.xml`), Java 17, Spring Boot 3.1.5.
 - Main class: `presentation.SearchApplication` (component scan: `presentation`, `infrastructure`, `application`, `domain`).
@@ -12,8 +17,11 @@
 
 ## Source-of-truth commands
 - Run tests: `mvn test`
+- Run tests through Docker: `docker run --rm -v "$(pwd)":/app -w /app maven:3.9.6-eclipse-temurin-17 mvn test`
 - Run one test class: `mvn -Dtest=ProductCreatedConsumerTest test`
+- Run one test class through Docker: `docker run --rm -v "$(pwd)":/app -w /app maven:3.9.6-eclipse-temurin-17 mvn -Dtest=ProductCreatedConsumerTest test`
 - Build jar: `mvn clean package`
+- Build through Docker: `docker run --rm -v "$(pwd)":/app -w /app maven:3.9.6-eclipse-temurin-17 mvn clean package`
 - Run app locally without Docker: `mvn spring-boot:run`
 - Full local environment: `docker compose -f deploy/docker-compose.yml up -d --build`
 - Check API logs in compose: `docker compose -f deploy/docker-compose.yml logs -f search-api`
