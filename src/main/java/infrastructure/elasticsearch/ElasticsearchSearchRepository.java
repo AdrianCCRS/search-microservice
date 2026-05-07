@@ -7,19 +7,13 @@ import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.IndexResponse;
 import co.elastic.clients.elasticsearch.core.DeleteResponse;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
-
-import java.util.List;
-import java.util.Objects;
-
-import org.springframework.stereotype.Repository;
-
 import domain.entities.SearchDocument;
-
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public class ElasticsearchSearchRepository {
@@ -91,6 +85,10 @@ public class ElasticsearchSearchRepository {
             return suggestions;
         } catch (ElasticsearchException | java.io.IOException e) {
             System.err.println("Error obteniendo sugerencias: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+
     public List<SearchDocument> search(String query) {
         try {
             SearchResponse<SearchDocument> response = client.search(s -> s

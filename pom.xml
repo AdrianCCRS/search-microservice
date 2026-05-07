@@ -53,12 +53,6 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
-        <!-- Spring Web (REST controllers) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
         <!-- Spring Data Redis -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

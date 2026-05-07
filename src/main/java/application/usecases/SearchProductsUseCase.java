@@ -1,7 +1,7 @@
 package application.usecases;
 
 import java.util.List;
-import application.domain.SearchDocument;
+import domain.entities.SearchDocument;
 
 public interface SearchProductsUseCase {
     List<SearchDocument> search(String q);
