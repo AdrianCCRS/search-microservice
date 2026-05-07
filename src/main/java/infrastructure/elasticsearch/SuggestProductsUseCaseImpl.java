@@ -2,8 +2,8 @@ package infrastructure.elasticsearch;
 
 import application.usecases.SuggestProductsUseCase;
 import infrastructure.cache.RedisSearchCacheRepository;
-
 import org.springframework.stereotype.Service;
+import presentation.dto.SuggestResponse;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,16 +24,17 @@ public class SuggestProductsUseCaseImpl implements SuggestProductsUseCase {
     }
 
     @Override
-    public List<String> execute(String query) {
+    public SuggestResponse execute(String query) {
         Optional<List<String>> cached = tryGetFromCache(query);
         if (cached.isPresent()) {
             System.out.println("Cache hit para sugerencias: " + query);
-            return cached.get();
+            List<String> suggestions = cached.get();
+            return new SuggestResponse(query, suggestions, suggestions.size());
         }
 
         List<String> suggestions = searchRepository.suggest(query, MAX_SUGGESTIONS);
         trySaveToCache(query, suggestions);
-        return suggestions;
+        return new SuggestResponse(query, suggestions, suggestions.size());
     }
 
     private Optional<List<String>> tryGetFromCache(String query) {

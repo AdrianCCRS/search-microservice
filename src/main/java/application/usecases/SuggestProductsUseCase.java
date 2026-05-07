@@ -1,7 +1,7 @@
 package application.usecases;
 
-import java.util.List;
+import presentation.dto.SuggestResponse;
 
 public interface SuggestProductsUseCase {
-    List<String> execute(String query);
+    SuggestResponse execute(String query);
 }
