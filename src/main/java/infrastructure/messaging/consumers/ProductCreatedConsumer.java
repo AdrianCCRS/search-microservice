@@ -2,6 +2,7 @@ package infrastructure.messaging.consumers;
 
 import application.events.ProductCreatedEvent;
 import application.usecases.IndexProductUseCase;
+import application.usecases.InvalidateCacheUseCase;
 import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import java.io.IOException;
 public class ProductCreatedConsumer {
 
     private final IndexProductUseCase indexProductUseCase;
+    private final InvalidateCacheUseCase invalidateCacheUseCase;
 
     @RabbitListener(queues = "search.product.created")
     public void consume(ProductCreatedEvent event,
@@ -27,8 +29,9 @@ public class ProductCreatedConsumer {
         try {
             log.info("Received ProductCreatedEvent to index product: {}", event.data().productId());
             indexProductUseCase.execute(event.data());
+            invalidateCacheUseCase.invalidateProductCreated(event.data());
             channel.basicAck(tag, false);
-            log.info("Successfully indexed and acknowledged product: {}", event.data().productId());
+            log.info("Successfully indexed, invalidated cache and acknowledged product: {}", event.data().productId());
         } catch (Exception e) {
             log.error("Error indexing product {}: {}", event.data() != null ? event.data().productId() : "unknown", e.getMessage(), e);
             channel.basicNack(tag, false, false); // va a DLQ

@@ -1,80 +1,94 @@
 package infrastructure.redis;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import application.events.ProductData;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.ScanOptions;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@ExtendWith(OutputCaptureExtension.class)
 class RedisInvalidateCacheUseCaseTest {
 
-    private StringRedisTemplate redisTemplate;
     private RedisSearchCacheRepository cacheRepository;
     private RedisInvalidateCacheUseCase useCase;
 
     @BeforeEach
     void setUp() {
-        redisTemplate = org.mockito.Mockito.mock(StringRedisTemplate.class);
         cacheRepository = org.mockito.Mockito.mock(RedisSearchCacheRepository.class);
-        useCase = new RedisInvalidateCacheUseCase(redisTemplate, cacheRepository);
-        ReflectionTestUtils.setField(useCase, "productKeyPrefix", "search:product:");
+        useCase = new RedisInvalidateCacheUseCase(cacheRepository, new SearchCacheKeyFactory());
         ReflectionTestUtils.setField(useCase, "queryKeyPattern", "search:query:*");
         ReflectionTestUtils.setField(useCase, "suggestKeyPattern", "search:suggest:*");
-        ReflectionTestUtils.setField(useCase, "scanCount", 1000L);
     }
 
     @Test
-    void executeDeletesProductQueryAndSuggestionCacheKeys() throws Exception {
-        Cursor<String> queryCursor = mockCursor();
-        when(queryCursor.hasNext()).thenReturn(true, false);
-        when(queryCursor.next()).thenReturn("search:query:abc123");
+    void invalidateProductUpdatedDeletesQueryAndMatchingSuggestionPatterns(CapturedOutput output) {
+        ProductData data = productData("  Gaming   Laptop  ");
+        when(cacheRepository.deleteByPattern("search:query:*")).thenReturn(2L);
+        when(cacheRepository.deleteByPattern("search:suggest:gaming laptop*")).thenReturn(1L);
 
-        Cursor<String> suggestCursor = mockCursor();
-        when(suggestCursor.hasNext()).thenReturn(true, false);
-        when(suggestCursor.next()).thenReturn("search:suggest:phone");
+        useCase.invalidateProductUpdated(data);
 
-        when(redisTemplate.scan(any(ScanOptions.class))).thenReturn(queryCursor, suggestCursor);
-
-        useCase.execute("123");
-
-        verify(cacheRepository).delete("search:product:123");
-        verify(cacheRepository).delete("search:query:abc123");
-        verify(cacheRepository).delete("search:suggest:phone");
+        verify(cacheRepository).deleteByPattern("search:query:*");
+        verify(cacheRepository).deleteByPattern("search:suggest:gaming laptop*");
+        assertTrue(output.getOut().contains("Invalidadas 3 claves de caché por evento ProductUpdated"));
     }
 
     @Test
-    void executeDeletesOnlyProductKeyWhenNoSearchKeysExist() throws Exception {
-        Cursor<String> queryCursor = mockCursor();
-        when(queryCursor.hasNext()).thenReturn(false);
+    void invalidateProductUpdatedFallsBackToAllSuggestionsWhenNameIsBlank() {
+        ProductData data = productData(" ");
 
-        Cursor<String> suggestCursor = mockCursor();
-        when(suggestCursor.hasNext()).thenReturn(false);
+        useCase.invalidateProductUpdated(data);
 
-        when(redisTemplate.scan(any(ScanOptions.class))).thenReturn(queryCursor, suggestCursor);
-
-        useCase.execute("123");
-
-        verify(cacheRepository).delete("search:product:123");
+        verify(cacheRepository).deleteByPattern("search:query:*");
+        verify(cacheRepository).deleteByPattern("search:suggest:*");
     }
 
     @Test
-    void executeRejectsBlankProductId() {
-        assertThrows(IllegalArgumentException.class, () -> useCase.execute(" "));
+    void invalidateProductUpdatedFallsBackToAllSuggestionsWhenNameIsNull() {
+        ProductData data = productData(null);
 
-        verify(redisTemplate, never()).scan(any(ScanOptions.class));
+        useCase.invalidateProductUpdated(data);
+
+        verify(cacheRepository).deleteByPattern("search:query:*");
+        verify(cacheRepository).deleteByPattern("search:suggest:*");
+    }
+
+    @Test
+    void invalidateProductCreatedDeletesAllSuggestionCacheKeys(CapturedOutput output) {
+        ProductData data = productData("Laptop Gaming X");
+        when(cacheRepository.deleteByPattern("search:suggest:*")).thenReturn(3L);
+
+        useCase.invalidateProductCreated(data);
+
+        verify(cacheRepository).deleteByPattern("search:suggest:*");
+        verify(cacheRepository, never()).deleteByPattern("search:query:*");
+        assertTrue(output.getOut().contains("Invalidadas 3 claves de caché por evento ProductCreated"));
+    }
+
+    @Test
+    void invalidateProductUpdatedRejectsNullData() {
+        assertThrows(IllegalArgumentException.class, () -> useCase.invalidateProductUpdated(null));
+
         verifyNoInteractions(cacheRepository);
     }
 
-    private Cursor<String> mockCursor() {
-        return org.mockito.Mockito.mock(Cursor.class);
+    @Test
+    void invalidateProductCreatedRejectsNullData() {
+        assertThrows(IllegalArgumentException.class, () -> useCase.invalidateProductCreated(null));
+
+        verifyNoInteractions(cacheRepository);
+    }
+
+    private ProductData productData(String name) {
+        return new ProductData("123", name, "Desc", "Cat", 10.0, 5.0, true, "Brand");
     }
 }

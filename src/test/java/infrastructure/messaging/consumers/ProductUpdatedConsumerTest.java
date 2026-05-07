@@ -43,7 +43,7 @@ class ProductUpdatedConsumerTest {
         consumer.consume(event, channel, deliveryTag);
 
         verify(indexProductUseCase, times(1)).execute(data);
-        verify(invalidateCacheUseCase, times(1)).execute(data.productId());
+        verify(invalidateCacheUseCase, times(1)).invalidateProductUpdated(data);
         verify(channel, times(1)).basicAck(deliveryTag, false);
     }
 
@@ -53,12 +53,13 @@ class ProductUpdatedConsumerTest {
         ProductData data = new ProductData("123", "Name", "Desc", "Cat", 10.0, 5.0, true, "Brand");
         ProductCreatedEvent event = new ProductCreatedEvent("ProductUpdated", "1.0", "today", data);
 
-        doThrow(new RuntimeException("Redis error")).when(invalidateCacheUseCase).execute(data.productId());
+        doThrow(new RuntimeException("Redis error")).when(invalidateCacheUseCase).invalidateProductUpdated(data);
 
         consumer.consume(event, channel, deliveryTag);
 
         verify(indexProductUseCase, times(1)).execute(data);
-        verify(invalidateCacheUseCase, times(1)).execute(data.productId());
+        verify(invalidateCacheUseCase, times(1)).invalidateProductUpdated(data);
         verify(channel, times(1)).basicNack(deliveryTag, false, false);
+        verify(channel, never()).basicAck(deliveryTag, false);
     }
 }

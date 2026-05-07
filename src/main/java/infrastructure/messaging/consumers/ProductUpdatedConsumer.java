@@ -32,7 +32,7 @@ public class ProductUpdatedConsumer {
             indexProductUseCase.execute(event.data());
             
             // 2. Invalidar caché
-            invalidateCacheUseCase.execute(event.data().productId());
+            invalidateCacheUseCase.invalidateProductUpdated(event.data());
             
             channel.basicAck(tag, false);
             log.info("Successfully updated and invalidated cache for product: {}", event.data().productId());

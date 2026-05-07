@@ -1,14 +1,10 @@
 package infrastructure.redis;
 
+import application.events.ProductData;
 import application.usecases.InvalidateCacheUseCase;
-import java.util.HashSet;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.ScanOptions;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -16,11 +12,11 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class RedisInvalidateCacheUseCase implements InvalidateCacheUseCase {
 
-    private final StringRedisTemplate redisTemplate;
-    private final RedisSearchCacheRepository cacheRepository;
+    private static final String PRODUCT_UPDATED_EVENT = "ProductUpdated";
+    private static final String PRODUCT_CREATED_EVENT = "ProductCreated";
 
-    @Value("${search.cache.redis.product-key-prefix:search:product:}")
-    private String productKeyPrefix;
+    private final RedisSearchCacheRepository cacheRepository;
+    private final SearchCacheKeyFactory keyFactory;
 
     @Value("${search.cache.redis.query-key-pattern:search:query:*}")
     private String queryKeyPattern;
@@ -28,37 +24,39 @@ public class RedisInvalidateCacheUseCase implements InvalidateCacheUseCase {
     @Value("${search.cache.redis.suggest-key-pattern:search:suggest:*}")
     private String suggestKeyPattern;
 
-    @Value("${search.cache.redis.scan-count:1000}")
-    private long scanCount;
-
     @Override
-    public void execute(String productId) {
-        if (productId == null || productId.isBlank()) {
-            throw new IllegalArgumentException("productId is required to invalidate Redis cache");
-        }
+    public void invalidateProductUpdated(ProductData data) {
+        validateData(data);
 
-        Set<String> keysToDelete = new HashSet<>();
-        keysToDelete.add(productKeyPrefix + productId);
-        keysToDelete.addAll(scanCacheKeys(queryKeyPattern));
-        keysToDelete.addAll(scanCacheKeys(suggestKeyPattern));
+        long deleted = cacheRepository.deleteByPattern(queryKeyPattern);
+        deleted += cacheRepository.deleteByPattern(suggestPatternForProductName(data.name()));
 
-        keysToDelete.forEach(cacheRepository::delete);
-        log.info("Invalidated {} Redis cache keys for product {}", keysToDelete.size(), productId);
+        log.info("Invalidadas {} claves de caché por evento {}", deleted, PRODUCT_UPDATED_EVENT);
     }
 
-    private Set<String> scanCacheKeys(String pattern) {
-        Set<String> keys = new HashSet<>();
-        ScanOptions options = ScanOptions.scanOptions()
-                .match(pattern)
-                .count(Math.max(scanCount, 1))
-                .build();
+    @Override
+    public void invalidateProductCreated(ProductData data) {
+        validateData(data);
 
-        try (Cursor<String> cursor = redisTemplate.scan(options)) {
-            while (cursor.hasNext()) {
-                keys.add(cursor.next());
-            }
+        long deleted = cacheRepository.deleteByPattern(suggestKeyPattern);
+
+        log.info("Invalidadas {} claves de caché por evento {}", deleted, PRODUCT_CREATED_EVENT);
+    }
+
+    private String suggestPatternForProductName(String productName) {
+        if (productName == null || productName.isBlank()) {
+            return suggestKeyPattern;
         }
 
-        return keys;
+        String suggestPrefix = suggestKeyPattern.endsWith("*")
+                ? suggestKeyPattern.substring(0, suggestKeyPattern.length() - 1)
+                : suggestKeyPattern;
+        return suggestPrefix + keyFactory.normalize(productName) + "*";
+    }
+
+    private void validateData(ProductData data) {
+        if (data == null) {
+            throw new IllegalArgumentException("Product data is required to invalidate Redis cache");
+        }
     }
 }
