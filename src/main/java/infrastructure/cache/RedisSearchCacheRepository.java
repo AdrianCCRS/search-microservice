@@ -9,7 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
+@Repository("legacyRedisSearchCacheRepository")
 public class RedisSearchCacheRepository {
 
     private static final long SUGGEST_TTL_SECONDS = 300;
