@@ -69,7 +69,7 @@ public class CachedSearchService {
         }
 
         log.debug("Cache miss for suggestion key {}", cacheKey);
-        List<String> suggestions = elasticsearchSearchRepository.suggest(normalizedQuery);
+        List<String> suggestions = elasticsearchSearchRepository.suggest(normalizedQuery, 10);
         writeCache(cacheKey, suggestions, suggestTtl);
         return suggestions;
     }

@@ -76,12 +76,12 @@ class CachedSearchServiceTest {
     void suggestUsesFiveMinuteTtlOnMiss() {
         String cacheKey = keyFactory.suggestKey("phone");
         when(cacheRepository.get(cacheKey)).thenReturn(Optional.empty());
-        when(elasticsearchSearchRepository.suggest("phone")).thenReturn(List.of("Phone Case", "Phone Charger"));
+        when(elasticsearchSearchRepository.suggest("phone", 10)).thenReturn(List.of("Phone Case", "Phone Charger"));
 
         List<String> results = service.suggest("Phone");
 
         assertEquals(2, results.size());
-        verify(elasticsearchSearchRepository).suggest("phone");
+        verify(elasticsearchSearchRepository).suggest("phone", 10);
         verify(cacheRepository).set(eq(cacheKey), anyString(), eq(Duration.ofMinutes(5)));
     }
 
