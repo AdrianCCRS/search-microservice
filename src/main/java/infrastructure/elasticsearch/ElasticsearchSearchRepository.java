@@ -3,6 +3,8 @@ package infrastructure.elasticsearch;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch.core.IndexRequest;
 import co.elastic.clients.elasticsearch.core.DeleteRequest;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.IndexResponse;
 import co.elastic.clients.elasticsearch.core.DeleteResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
@@ -15,6 +17,9 @@ import java.util.Objects;
 import org.springframework.stereotype.Repository;
 
 import domain.entities.SearchDocument;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Repository
 public class ElasticsearchSearchRepository {
@@ -57,6 +62,35 @@ public class ElasticsearchSearchRepository {
         }
     }
 
+    public List<String> suggest(String query, int size) {
+        try {
+            SearchResponse<SearchDocument> response = client.search(
+                SearchRequest.of(s -> s
+                    .index(indexName)
+                    .size(size)
+                    .query(q -> q
+                        .matchPhrasePrefix(m -> m
+                            .field("name")
+                            .query(query)
+                            .maxExpansions(10)
+                        )
+                    )
+                    .source(src -> src
+                        .filter(f -> f.includes("name"))
+                    )
+                ),
+                SearchDocument.class
+            );
+
+            List<String> suggestions = new ArrayList<>();
+            response.hits().hits().forEach(hit -> {
+                if (hit.source() != null && hit.source().getName() != null) {
+                    suggestions.add(hit.source().getName());
+                }
+            });
+            return suggestions;
+        } catch (ElasticsearchException | java.io.IOException e) {
+            System.err.println("Error obteniendo sugerencias: " + e.getMessage());
     public List<SearchDocument> search(String query) {
         try {
             SearchResponse<SearchDocument> response = client.search(s -> s
