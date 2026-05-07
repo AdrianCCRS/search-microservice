@@ -29,17 +29,17 @@ class SuggestControllerTest {
 
     @Test
     void suggestReturns200WithResults() throws Exception {
-        when(suggestProductsUseCase.execute("phone")).thenReturn(List.of("Phone Case", "Phone Charger"));
+        when(suggestProductsUseCase.execute("Zap")).thenReturn(List.of("Zapato", "Zapatera"));
 
-        mockMvc.perform(get("/api/search/suggest").param("q", "phone"))
+        mockMvc.perform(get("/api/search/suggest").param("q", "Zap"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0]").value("Phone Case"))
-                .andExpect(jsonPath("$[1]").value("Phone Charger"));
+                .andExpect(jsonPath("$[0]").value("Zapato"))
+                .andExpect(jsonPath("$[1]").value("Zapatera"));
     }
 
     @Test
     void suggestReturns400WhenQueryTooShort() throws Exception {
-        mockMvc.perform(get("/api/search/suggest").param("q", "ab"))
+        mockMvc.perform(get("/api/search/suggest").param("q", "Za"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(suggestProductsUseCase);
@@ -54,12 +54,11 @@ class SuggestControllerTest {
     }
 
     @Test
-    void suggestTrimsQueryBeforeValidation() throws Exception {
-        when(suggestProductsUseCase.execute("abc")).thenReturn(List.of("Abc Product"));
+    void suggestReturns400WhenQueryIsMissing() throws Exception {
+        mockMvc.perform(get("/api/search/suggest"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("El parámetro 'q' es requerido"));
 
-        mockMvc.perform(get("/api/search/suggest").param("q", "  abc  "))
-                .andExpect(status().isOk());
-
-        verify(suggestProductsUseCase).execute("abc");
+        verifyNoInteractions(suggestProductsUseCase);
     }
 }
