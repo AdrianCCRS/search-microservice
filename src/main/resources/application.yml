@@ -8,6 +8,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD:redis_secure_pass_123}
+      timeout: ${REDIS_TIMEOUT:2s}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
@@ -30,3 +32,13 @@ management:
   endpoint:
     health:
       show-details: always
+
+search:
+  cache:
+    redis:
+      product-key-prefix: ${SEARCH_CACHE_PRODUCT_KEY_PREFIX:search:product:}
+      query-key-pattern: ${SEARCH_CACHE_QUERY_KEY_PATTERN:search:query:*}
+      suggest-key-pattern: ${SEARCH_CACHE_SUGGEST_KEY_PATTERN:search:suggest:*}
+      scan-count: ${SEARCH_CACHE_SCAN_COUNT:1000}
+      search-ttl: ${SEARCH_CACHE_SEARCH_TTL:1m}
+      suggest-ttl: ${SEARCH_CACHE_SUGGEST_TTL:5m}
