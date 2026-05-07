@@ -59,6 +59,12 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- Spring Data MongoDB -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
+
         <!-- Jackson (serialización JSON para Redis) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

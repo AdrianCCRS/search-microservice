@@ -1,5 +1,9 @@
 package application.usecases;
 
+import application.events.ProductData;
+
 public interface InvalidateCacheUseCase {
-    void execute(String productId);
+    void invalidateProductUpdated(ProductData data);
+
+    void invalidateProductCreated(ProductData data);
 }
