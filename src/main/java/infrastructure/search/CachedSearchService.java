@@ -6,6 +6,9 @@ import domain.entities.SearchDocument;
 import infrastructure.elasticsearch.ElasticsearchSearchRepository;
 import infrastructure.redis.RedisSearchCacheRepository;
 import infrastructure.redis.SearchCacheKeyFactory;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -27,11 +30,20 @@ public class CachedSearchService {
     private final Duration searchTtl;
     private final Duration suggestTtl;
 
+    // --- Micrometer metrics ---
+    private final Counter searchCacheHits;
+    private final Counter searchCacheMisses;
+    private final Counter suggestCacheHits;
+    private final Counter suggestCacheMisses;
+    private final Timer searchEsTimer;
+    private final Timer suggestEsTimer;
+
     public CachedSearchService(
             ElasticsearchSearchRepository elasticsearchSearchRepository,
             RedisSearchCacheRepository cacheRepository,
             SearchCacheKeyFactory keyFactory,
             ObjectMapper objectMapper,
+            MeterRegistry meterRegistry,
             @Value("${search.cache.redis.search-ttl:1m}") Duration searchTtl,
             @Value("${search.cache.redis.suggest-ttl:5m}") Duration suggestTtl) {
         this.elasticsearchSearchRepository = elasticsearchSearchRepository;
@@ -40,6 +52,34 @@ public class CachedSearchService {
         this.objectMapper = objectMapper;
         this.searchTtl = searchTtl;
         this.suggestTtl = suggestTtl;
+
+        // Cache hit/miss counters (tagged by operation for dashboard filtering)
+        this.searchCacheHits = Counter.builder("search.cache.hits")
+                .description("Number of Redis cache hits")
+                .tag("operation", "search")
+                .register(meterRegistry);
+        this.searchCacheMisses = Counter.builder("search.cache.misses")
+                .description("Number of Redis cache misses")
+                .tag("operation", "search")
+                .register(meterRegistry);
+        this.suggestCacheHits = Counter.builder("search.cache.hits")
+                .description("Number of Redis cache hits")
+                .tag("operation", "suggest")
+                .register(meterRegistry);
+        this.suggestCacheMisses = Counter.builder("search.cache.misses")
+                .description("Number of Redis cache misses")
+                .tag("operation", "suggest")
+                .register(meterRegistry);
+
+        // Elasticsearch query duration timers
+        this.searchEsTimer = Timer.builder("search.elasticsearch.query.duration")
+                .description("Time spent querying Elasticsearch")
+                .tag("operation", "search")
+                .register(meterRegistry);
+        this.suggestEsTimer = Timer.builder("search.elasticsearch.query.duration")
+                .description("Time spent querying Elasticsearch")
+                .tag("operation", "suggest")
+                .register(meterRegistry);
     }
 
     public List<SearchDocument> search(String query) {
@@ -49,11 +89,15 @@ public class CachedSearchService {
         Optional<List<SearchDocument>> cachedResults = readCache(cacheKey, SEARCH_RESULT_TYPE);
         if (cachedResults.isPresent()) {
             log.debug("Cache hit for search query key {}", cacheKey);
+            searchCacheHits.increment();
             return cachedResults.get();
         }
 
         log.debug("Cache miss for search query key {}", cacheKey);
-        List<SearchDocument> results = elasticsearchSearchRepository.search(normalizedQuery);
+        searchCacheMisses.increment();
+        List<SearchDocument> results = searchEsTimer.record(
+                () -> elasticsearchSearchRepository.search(normalizedQuery)
+        );
         writeCache(cacheKey, results, searchTtl);
         return results;
     }
@@ -65,11 +109,15 @@ public class CachedSearchService {
         Optional<List<String>> cachedSuggestions = readCache(cacheKey, SUGGESTION_RESULT_TYPE);
         if (cachedSuggestions.isPresent()) {
             log.debug("Cache hit for suggestion key {}", cacheKey);
+            suggestCacheHits.increment();
             return cachedSuggestions.get();
         }
 
         log.debug("Cache miss for suggestion key {}", cacheKey);
-        List<String> suggestions = elasticsearchSearchRepository.suggest(normalizedQuery);
+        suggestCacheMisses.increment();
+        List<String> suggestions = suggestEsTimer.record(
+                () -> elasticsearchSearchRepository.suggest(normalizedQuery)
+        );
         writeCache(cacheKey, suggestions, suggestTtl);
         return suggestions;
     }
@@ -96,3 +144,4 @@ public class CachedSearchService {
         }
     }
 }
+

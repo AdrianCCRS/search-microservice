@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  # Job 1 — Search API (Spring Boot Actuator / Micrometer)
+  - job_name: "search-api"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["search-api:8080"]
+        labels:
+          service: "search-microservice"
+
+  # Job 2 — Elasticsearch Exporter
+  - job_name: "elasticsearch"
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["elasticsearch-exporter:9114"]
+        labels:
+          service: "elasticsearch"

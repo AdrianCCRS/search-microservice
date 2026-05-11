@@ -13,6 +13,8 @@ import domain.entities.SearchDocument;
 import infrastructure.elasticsearch.ElasticsearchSearchRepository;
 import infrastructure.redis.RedisSearchCacheRepository;
 import infrastructure.redis.SearchCacheKeyFactory;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.List;
@@ -26,6 +28,7 @@ class CachedSearchServiceTest {
     private RedisSearchCacheRepository cacheRepository;
     private SearchCacheKeyFactory keyFactory;
     private ObjectMapper objectMapper;
+    private MeterRegistry meterRegistry;
     private CachedSearchService service;
 
     @BeforeEach
@@ -34,11 +37,13 @@ class CachedSearchServiceTest {
         cacheRepository = org.mockito.Mockito.mock(RedisSearchCacheRepository.class);
         keyFactory = new SearchCacheKeyFactory();
         objectMapper = new ObjectMapper();
+        meterRegistry = new SimpleMeterRegistry();
         service = new CachedSearchService(
                 elasticsearchSearchRepository,
                 cacheRepository,
                 keyFactory,
                 objectMapper,
+                meterRegistry,
                 Duration.ofMinutes(1),
                 Duration.ofMinutes(5)
         );

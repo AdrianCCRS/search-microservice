@@ -1,0 +1,56 @@
+groups:
+  - name: search_microservice_alerts
+    rules:
+      # WARNING: P95 search latency > 100ms for 2 minutes
+      - alert: SearchLatencyP95Warning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket{uri="/api/search", method="GET", status!~"5.."}[5m])) by (le)
+          ) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: search-microservice
+          panel: "P95 Latencia Búsqueda"
+        annotations:
+          summary: "Search P95 latency exceeds 100ms"
+          description: >
+            P95 latency for /api/search is {{ $value | humanizeDuration }}
+            (threshold: 100ms). Sustained for more than 2 minutes.
+
+      # CRITICAL: P95 search latency > 150ms
+      - alert: SearchLatencyP95Critical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_server_requests_seconds_bucket{uri="/api/search", method="GET", status!~"5.."}[5m])) by (le)
+          ) > 0.15
+        for: 1m
+        labels:
+          severity: critical
+          service: search-microservice
+          panel: "P95 Latencia Búsqueda"
+        annotations:
+          summary: "CRITICAL — Search P95 latency exceeds 150ms"
+          description: >
+            P95 latency for /api/search is {{ $value | humanizeDuration }}
+            (threshold: 150ms). Immediate attention required.
+
+      # WARNING: Cache hit rate < 70% for 5 minutes
+      - alert: CacheHitRateLow
+        expr: >
+          (
+            sum(rate(search_cache_hits_total[5m]))
+            /
+            (sum(rate(search_cache_hits_total[5m])) + sum(rate(search_cache_misses_total[5m])))
+          ) * 100 < 70
+        for: 5m
+        labels:
+          severity: warning
+          service: search-microservice
+          panel: "Cache Hit Rate Redis"
+        annotations:
+          summary: "Redis cache hit rate below 70%"
+          description: >
+            Cache hit rate is {{ $value | printf "%.1f" }}%
+            (threshold: 70%). This may indicate cache eviction issues,
+            TTL misconfiguration, or a high rate of unique queries.
