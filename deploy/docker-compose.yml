@@ -163,11 +163,11 @@ services:
     networks:
       - search-network
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/health/ready | grep -q '\"status\":\"UP\"' || exit 1"]
       interval: 20s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 10
+      start_period: 90s
     restart: always
 
   # --- Observability Stack ---

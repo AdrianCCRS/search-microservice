@@ -1,6 +1,6 @@
 _format_version: "3.0"
 _transform: true
- 
+
 services:
   - name: search-service
     url: http://search-api:8080
@@ -26,8 +26,16 @@ consumers:
     jwt_secrets:
       - key: "http://keycloak:8080/realms/ecommerce"
         algorithm: RS256
+        # FASE 2: Reemplazar este placeholder por la clave real obtenida de:
+        # curl http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
+        # y convertirla con: https://8gwifi.org/jwkconvertfunctions.jsp
+        # NOTA: Este PEM dummy es sintacticamente valido para que Kong arranque sin errores.
+        # Mientras la clave sea dummy, Kong arrancara pero rechazara todos los tokens (401).
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          <SE_EXTRAERA_DE_KEYCLOAK_EN_EJECUCION_FASE_2>
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Ud
+          cXinGzmRlLdBQINpMJcVMwVe0d0XOuDewGGdiNTOLVyI4OaBBjC1RhQXn4GRLVPE
+          CRPERg3bDTUVLDMg3wVqRdpNQcMU/Mg9VyQHDKIINYuFSiZHbPTuPwj7TJUmW3n8
+          PLACEHOLDER-REPLACE-IN-PHASE-2-WITH-REAL-KEYCLOAK-RSA-KEY-FROM-JWKS
           -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+        secret: "unused-for-rs256"
