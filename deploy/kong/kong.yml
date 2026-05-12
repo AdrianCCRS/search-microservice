@@ -13,4 +13,21 @@ services:
         methods: [GET]
         paths:
           - /api/search/suggest
- 
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify:
+            - exp
+          run_on_preflight: true
+
+consumers:
+  - username: keycloak-issuer
+    jwt_secrets:
+      - key: "http://keycloak:8080/realms/ecommerce"
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          <SE_EXTRAERA_DE_KEYCLOAK_EN_EJECUCION_FASE_2>
+          -----END PUBLIC KEY-----
+        secret: "unused-for-rs256"

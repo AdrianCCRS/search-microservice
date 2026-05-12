@@ -23,6 +23,17 @@
       "bearerOnly": true,
       "publicClient": false,
       "protocol": "openid-connect"
+    },
+    {
+      "clientId": "search-client",
+      "enabled": true,
+      "bearerOnly": false,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "protocol": "openid-connect",
+      "redirectUris": ["*"],
+      "webOrigins": ["*"]
     }
   ],
   "users": [
