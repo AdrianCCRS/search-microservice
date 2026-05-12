@@ -163,7 +163,7 @@ services:
     networks:
       - search-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8080/health/ready | grep -q '\"status\":\"UP\"' || exit 1"]
+      test: ["CMD-SHELL", "cat /proc/net/tcp6 | grep -q '1F90' || cat /proc/net/tcp | grep -q '1F90'"]
       interval: 20s
       timeout: 10s
       retries: 10

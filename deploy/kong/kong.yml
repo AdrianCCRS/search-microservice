@@ -24,7 +24,7 @@ services:
 consumers:
   - username: keycloak-issuer
     jwt_secrets:
-      - key: "http://keycloak:8080/realms/ecommerce"
+      - key: "http://localhost:8081/realms/ecommerce"
         algorithm: RS256
         # FASE 2: Reemplazar este placeholder por la clave real obtenida de:
         # curl http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
@@ -33,9 +33,12 @@ consumers:
         # Mientras la clave sea dummy, Kong arrancara pero rechazara todos los tokens (401).
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Ud
-          cXinGzmRlLdBQINpMJcVMwVe0d0XOuDewGGdiNTOLVyI4OaBBjC1RhQXn4GRLVPE
-          CRPERg3bDTUVLDMg3wVqRdpNQcMU/Mg9VyQHDKIINYuFSiZHbPTuPwj7TJUmW3n8
-          PLACEHOLDER-REPLACE-IN-PHASE-2-WITH-REAL-KEYCLOAK-RSA-KEY-FROM-JWKS
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzSMM2CzjIyPHTaUIEg4
+          78JPvOOl/7p6oVZZMolBSGdxfbZf5TMU2CQH9lqZegSRed1e0hAXQjv0oCr4Xn5H
+          x+mwH5gK/017ePuL6zeY8gvJtDa7ZkA1M5UW7MSwfbSNTwQE9GAQvaWBcmLtRoDg
+          FuOOHE0E6V9bRDiKTG/trQq880XCghJO1sH7qf+2riw6Zg04YGeHPrc7613D3I9I
+          5WU1DYedC/LXMgO9UBG2S4KKKw4Lh3aFm2fZEqNhVVhKacKrs+sSm8cZklAtHivn
+          nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
+          wwIDAQAB
           -----END PUBLIC KEY-----
         secret: "unused-for-rs256"
