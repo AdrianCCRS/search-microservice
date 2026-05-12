@@ -318,10 +318,64 @@
       }
     },
     {
+      "title": "Tiempo de Indexación ES",
+      "description": "P95 time to index a product document in Elasticsearch (from IndexProductUseCaseImpl)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisLabel": "Latency",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "scheme",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "red", "value": 0.2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum(rate(search_elasticsearch_index_duration_seconds_bucket{operation=\"index\"}[5m])) by (le))",
+          "legendFormat": "P95 Index Latency",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.50, sum(rate(search_elasticsearch_index_duration_seconds_bucket{operation=\"index\"}[5m])) by (le))",
+          "legendFormat": "P50 Index Latency",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
       "title": "Tamaño del Índice Elasticsearch",
       "description": "Total size of the Elasticsearch products index in bytes (from ES exporter)",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
