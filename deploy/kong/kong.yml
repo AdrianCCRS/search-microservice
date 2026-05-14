@@ -9,10 +9,12 @@ services:
         methods: [GET]
         paths:
           - /api/search
+        strip_path: false
       - name: suggest-route
         methods: [GET]
         paths:
           - /api/search/suggest
+        strip_path: false
     plugins:
       - name: jwt
         config:
@@ -24,21 +26,33 @@ services:
 consumers:
   - username: keycloak-issuer
     jwt_secrets:
+      # iss must match Keycloak token issuer (depends on host used to call /token).
       - key: "http://localhost:8081/realms/ecommerce"
         algorithm: RS256
-        # FASE 2: Reemplazar este placeholder por la clave real obtenida de:
-        # curl http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
-        # y convertirla con: https://8gwifi.org/jwkconvertfunctions.jsp
-        # NOTA: Este PEM dummy es sintacticamente valido para que Kong arranque sin errores.
-        # Mientras la clave sea dummy, Kong arrancara pero rechazara todos los tokens (401).
+        # RS256 public key (PEM) from Keycloak JWKS x5c for kid with use=sig. If realm keys rotate, refresh:
+        # curl -s http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzSMM2CzjIyPHTaUIEg4
-          78JPvOOl/7p6oVZZMolBSGdxfbZf5TMU2CQH9lqZegSRed1e0hAXQjv0oCr4Xn5H
-          x+mwH5gK/017ePuL6zeY8gvJtDa7ZkA1M5UW7MSwfbSNTwQE9GAQvaWBcmLtRoDg
-          FuOOHE0E6V9bRDiKTG/trQq880XCghJO1sH7qf+2riw6Zg04YGeHPrc7613D3I9I
-          5WU1DYedC/LXMgO9UBG2S4KKKw4Lh3aFm2fZEqNhVVhKacKrs+sSm8cZklAtHivn
-          nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
-          wwIDAQAB
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApnwJCqbBJLsQ5SNgGmPp
+          Nu1qzZx+UkXmc6OhD1qYIimf0Jale+gDXNb5MLIWQDRdrspf8/KHinyOrVt/j/bp
+          P2Cu2SG3aKR0h5JNBvvpimXzV7cfu5OjABu3p8JvBioupFOUKtIB4+yPLp4/8hPQ
+          zjVsVOOlFEv/o896BOR6agbTClo34ARVDyznQNnoFM24sIuSSM7kWi7Pdseg2KNs
+          a2ZtXR5PhDUho7aamGBn6gwTaWIFdLHLF+G83czWRHEdu/m6LQP8O+3GjwNPvzfr
+          NvDwiknLqwuTpHwku0/HxxCecIZw2hRVW+3QAd4YbZPFWkey6PtpoCspaSBsonDS
+          KQIDAQAB
           -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+        secret: "unused-for-rs256"
+      # k6 en Docker (Windows/Mac) suele obtener tokens contra host.docker.internal.
+      - key: "http://host.docker.internal:8081/realms/ecommerce"
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApnwJCqbBJLsQ5SNgGmPp
+          Nu1qzZx+UkXmc6OhD1qYIimf0Jale+gDXNb5MLIWQDRdrspf8/KHinyOrVt/j/bp
+          P2Cu2SG3aKR0h5JNBvvpimXzV7cfu5OjABu3p8JvBioupFOUKtIB4+yPLp4/8hPQ
+          zjVsVOOlFEv/o896BOR6agbTClo34ARVDyznQNnoFM24sIuSSM7kWi7Pdseg2KNs
+          a2ZtXR5PhDUho7aamGBn6gwTaWIFdLHLF+G83czWRHEdu/m6LQP8O+3GjwNPvzfr
+          NvDwiknLqwuTpHwku0/HxxCecIZw2hRVW+3QAd4YbZPFWkey6PtpoCspaSBsonDS
+          KQIDAQAB
+          -----END PUBLIC KEY-----
+        secret: "unused-for-rs256"
