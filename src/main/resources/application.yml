@@ -46,3 +46,9 @@ search:
       scan-count: ${SEARCH_CACHE_SCAN_COUNT:1000}
       search-ttl: ${SEARCH_CACHE_SEARCH_TTL:1m}
       suggest-ttl: ${SEARCH_CACHE_SUGGEST_TTL:5m}
+
+es:
+  index:
+    name: products
+    shards: ${ES_NUMBER_OF_SHARDS:1}
+    replicas: ${ES_NUMBER_OF_REPLICAS:0}
