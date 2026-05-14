@@ -2,6 +2,7 @@ package infrastructure.elasticsearch;
 
 import application.events.ProductData;
 import domain.entities.SearchDocument;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,12 +16,14 @@ import static org.mockito.Mockito.*;
 class IndexProductUseCaseImplTest {
 
     private ElasticsearchSearchRepository repository;
+    private MeterRegistry meterRegistry;
     private IndexProductUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
         repository = mock(ElasticsearchSearchRepository.class);
-        useCase = new IndexProductUseCaseImpl(repository, new SimpleMeterRegistry());
+        meterRegistry = new SimpleMeterRegistry();
+        useCase = new IndexProductUseCaseImpl(repository, meterRegistry);
     }
 
     @Test

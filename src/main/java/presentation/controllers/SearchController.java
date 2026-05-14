@@ -1,9 +1,13 @@
 package presentation.controllers;
 
 import domain.entities.SearchDocument;
+import infrastructure.elasticsearch.EsQuerySanitizer;
 import infrastructure.search.CachedSearchService;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,30 +16,45 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/search")
 @RequiredArgsConstructor
+@Validated
 public class SearchController {
 
     private final CachedSearchService cachedSearchService;
+    private final EsQuerySanitizer esQuerySanitizer;
 
     @GetMapping
     public List<SearchDocument> search(
-            @RequestParam("q") String query,
+            @RequestParam("q")
+            @NotBlank(message = "El parámetro 'q' es requerido")
+            @Size(max = 200, message = "El parámetro 'q' no debe exceder 200 caracteres")
+            String query,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "searchAfter", required = false) String searchAfter
     ) {
         validateQuery(query);
         validatePagination(page, searchAfter);
-        return cachedSearchService.search(query);
+        String sanitized = esQuerySanitizer.sanitize(query);
+        return cachedSearchService.search(sanitized);
     }
 
     @GetMapping("/suggest")
-    public List<String> suggest(@RequestParam("q") String query) {
+    public List<String> suggest(
+            @RequestParam("q")
+            @NotBlank(message = "El parámetro 'q' es requerido")
+            @Size(max = 200, message = "El parámetro 'q' no debe exceder 200 caracteres")
+            String query
+    ) {
         validateQuery(query);
-        return cachedSearchService.suggest(query);
+        String sanitized = esQuerySanitizer.sanitize(query);
+        return cachedSearchService.suggest(sanitized);
     }
 
     private void validateQuery(String query) {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("El parámetro 'q' es requerido");
+        }
+        if (query.length() > 200) {
+            throw new IllegalArgumentException("El parámetro 'q' no debe exceder 200 caracteres");
         }
     }
 
