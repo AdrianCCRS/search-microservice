@@ -244,3 +244,49 @@ $jwks = (Invoke-WebRequest -Uri "http://localhost:8081/realms/ecommerce/protocol
 ```
 
 > 💡 **Para el sprint:** si usas `docker compose up -d` (sin `down`) los volúmenes persisten y la clave no cambia. El problema solo ocurre al hacer `docker compose down`.
+
+---
+
+## Security Policies
+
+### Rate Limiting
+
+**Kong Gateway (primary):** The `rate-limiting` plugin is applied on both `search-route` and `suggest-route`, enforcing limits by Consumer (JWT) and IP address simultaneously. 
+
+| Setting | Value | Environment Variable |
+|---------|-------|---------------------|
+| Requests per minute | 60 | `KONG_RATE_LIMIT_MINUTE` |
+| Policy | `local` | — |
+| Fault tolerant | `true` | — |
+
+When the limit is exceeded, Kong returns `429 Too Many Requests`.
+
+**Spring Boot (defense-in-depth):** A `RateLimitInterceptor` provides a secondary rate limit layer at the application level, configurable via:
+- `search.security.rate-limit.enabled` (default: `true`)
+- `search.security.rate-limit.requests-per-minute` (default: `60`)
+
+Uses `X-Forwarded-For` header (set by Kong) for client identification, falling back to `RemoteAddr`.
+
+### Input Validation
+
+| Constraint | Annotation | Error Response |
+|-----------|-----------|---------------|
+| Query must not be blank | `@NotBlank` | 400 Bad Request |
+| Query length ≤ 200 characters | `@Size(max=200)` | 400 Bad Request |
+| Page > 100 requires `searchAfter` | manual check | 400 Bad Request |
+
+Validation is enforced through both Spring Bean Validation (`@Validated` + Jakarta annotations) and programmatic checks in the controller for defense-in-depth.
+
+### Elasticsearch DSL Injection Protection
+
+All ES queries use the `co.elastic.clients.elasticsearch.ElasticsearchClient` typed DSL builder (`multi_match` for search, `match_phrase_prefix` for suggestions). User input is never concatenated into raw query strings.
+
+**Additional defense-in-depth:** An `EsQuerySanitizer` strips ES-special characters (`*`, `?`, `~`, `^`, `{`, `}`, `[`, `]`, `(`, `)`, `:`, `\`, `/`, `"`, `+`, `-`, `=`, `>`, `<`, `!`, `&`, `|`) from user queries before they reach Elasticsearch. This prevents wildcard expansion, fuzziness manipulation, and query DSL injection attempts even if the query builder approach were accidentally changed in the future.
+
+### Error Response Format
+
+| HTTP Status | Scenario | Response Body |
+|-------------|----------|---------------|
+| 400 | Invalid/missing parameters | `{"error": "<message>"}` |
+| 429 | Rate limit exceeded | `{"error": "Demasiadas solicitudes..."}` |
+| 500 | Internal errors | `{"error": "Error interno del servidor"}` |

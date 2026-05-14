@@ -1,6 +1,7 @@
 package presentation.controllers;
 
 import domain.entities.SearchDocument;
+import infrastructure.elasticsearch.EsQuerySanitizer;
 import infrastructure.search.CachedSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,7 @@ import presentation.advice.GlobalExceptionHandler;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -18,13 +20,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SearchControllerTest {
 
     private CachedSearchService cachedSearchService;
+    private EsQuerySanitizer esQuerySanitizer;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         cachedSearchService = mock(CachedSearchService.class);
+        esQuerySanitizer = mock(EsQuerySanitizer.class);
+        when(esQuerySanitizer.sanitize(anyString())).thenAnswer(inv -> inv.getArgument(0));
+
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new SearchController(cachedSearchService))
+                .standaloneSetup(new SearchController(cachedSearchService, esQuerySanitizer))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

@@ -71,6 +71,12 @@
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
 
+        <!-- Bean Validation (JSR-380) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Jackson (serialización JSON para Redis) -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

@@ -20,6 +20,20 @@ services:
           claims_to_verify:
             - exp
           run_on_preflight: true
+      - name: rate-limiting
+        config:
+          minute: ${KONG_RATE_LIMIT_MINUTE:-60}
+          limit_by: consumer
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
+      - name: rate-limiting
+        config:
+          minute: ${KONG_RATE_LIMIT_MINUTE:-60}
+          limit_by: ip
+          policy: local
+          fault_tolerant: true
+          hide_client_headers: false
 
 consumers:
   - username: keycloak-issuer
