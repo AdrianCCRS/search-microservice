@@ -1,74 +1,51 @@
 package infrastructure.elasticsearch;
 
-import infrastructure.cache.RedisSearchCacheRepository;
+import infrastructure.search.CachedSearchService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class SuggestProductsUseCaseImplTest {
 
-    private ElasticsearchSearchRepository searchRepository;
-    private RedisSearchCacheRepository cacheRepository;
+    private CachedSearchService cachedSearchService;
     private SuggestProductsUseCaseImpl useCase;
 
     @BeforeEach
     void setUp() {
-        searchRepository = mock(ElasticsearchSearchRepository.class);
-        cacheRepository = mock(RedisSearchCacheRepository.class);
-        useCase = new SuggestProductsUseCaseImpl(searchRepository, cacheRepository);
+        cachedSearchService = mock(CachedSearchService.class);
+        useCase = new SuggestProductsUseCaseImpl(cachedSearchService);
     }
 
     @Test
-    void returnsCachedSuggestionsOnCacheHit() {
-        List<String> cached = List.of("Phone Case", "Phone Charger");
-        when(cacheRepository.getSuggestions("phone")).thenReturn(Optional.of(cached));
+    void execute_delegatesToCachedSearchService() {
+        List<String> expected = List.of("Phone Case", "Phone Charger");
+        when(cachedSearchService.suggest("phone")).thenReturn(expected);
 
         List<String> result = useCase.execute("phone");
 
-        assertEquals(cached, result);
-        verifyNoInteractions(searchRepository);
-        verify(cacheRepository, never()).setSuggestions(any(), any());
+        assertEquals(expected, result);
+        verify(cachedSearchService).suggest("phone");
     }
 
     @Test
-    void queriesElasticsearchAndCachesOnCacheMiss() {
-        List<String> suggestions = List.of("Phone Case", "Phone Charger");
-        when(cacheRepository.getSuggestions("phone")).thenReturn(Optional.empty());
-        when(searchRepository.suggest("phone", 10)).thenReturn(suggestions);
+    void execute_returnsEmptyList_whenNoSuggestionsFound() {
+        when(cachedSearchService.suggest("xyz")).thenReturn(List.of());
 
-        List<String> result = useCase.execute("phone");
+        List<String> result = useCase.execute("xyz");
 
-        assertEquals(suggestions, result);
-        verify(searchRepository).suggest("phone", 10);
-        verify(cacheRepository).setSuggestions("phone", suggestions);
+        assertTrue(result.isEmpty());
     }
 
     @Test
-    void fallsBackToElasticsearchWhenRedisThrows() {
-        List<String> suggestions = List.of("Mouse", "Mouse Pad");
-        when(cacheRepository.getSuggestions("mouse")).thenThrow(new RuntimeException("Redis down"));
-        when(searchRepository.suggest("mouse", 10)).thenReturn(suggestions);
+    void execute_returnsWhateverCachedSearchServiceReturns() {
+        List<String> suggestions = List.of("Keyboard", "Keyboard Cover");
+        when(cachedSearchService.suggest("key")).thenReturn(suggestions);
 
-        List<String> result = useCase.execute("mouse");
-
-        assertEquals(suggestions, result);
-        verify(searchRepository).suggest("mouse", 10);
-    }
-
-    @Test
-    void continuesEvenWhenCacheWriteFails() {
-        List<String> suggestions = List.of("Keyboard");
-        when(cacheRepository.getSuggestions("key")).thenReturn(Optional.empty());
-        when(searchRepository.suggest("key", 10)).thenReturn(suggestions);
-        doThrow(new RuntimeException("Redis write error")).when(cacheRepository).setSuggestions(any(), any());
-
-        List<String> result = useCase.execute("key");
-
-        assertEquals(suggestions, result);
+        assertEquals(suggestions, useCase.execute("key"));
     }
 }

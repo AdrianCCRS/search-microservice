@@ -1,5 +1,6 @@
 package presentation.controllers;
 
+import infrastructure.config.SearchApiProperties;
 import infrastructure.elasticsearch.EsQuerySanitizer;
 import infrastructure.search.CachedSearchService;
 import java.util.List;
@@ -26,7 +27,7 @@ class SearchControllerSecurityTest {
         esQuerySanitizer = new EsQuerySanitizer();
 
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new SearchController(cachedSearchService, esQuerySanitizer))
+                .standaloneSetup(new SearchController(cachedSearchService, esQuerySanitizer, new SearchApiProperties()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

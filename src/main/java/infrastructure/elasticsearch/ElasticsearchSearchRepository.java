@@ -10,19 +10,25 @@ import co.elastic.clients.elasticsearch.core.DeleteResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import domain.entities.SearchDocument;
+import infrastructure.config.SearchApiProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class ElasticsearchSearchRepository {
 
     private final ElasticsearchClient client;
-    private final String indexName = "products";
+    private final SearchApiProperties searchApiProperties;
 
-    public ElasticsearchSearchRepository(ElasticsearchClient client) {
+    @Value("${es.index.name:products}")
+    private String indexName;
+
+    public ElasticsearchSearchRepository(ElasticsearchClient client, SearchApiProperties searchApiProperties) {
         this.client = client;
+        this.searchApiProperties = searchApiProperties;
     }
 
     public void indexDocument(SearchDocument doc) {
@@ -66,7 +72,7 @@ public class ElasticsearchSearchRepository {
                         .matchPhrasePrefix(m -> m
                             .field("name")
                             .query(query)
-                            .maxExpansions(10)
+                            .maxExpansions(searchApiProperties.getEsSuggestMaxExpansions())
                         )
                     )
                     .source(src -> src

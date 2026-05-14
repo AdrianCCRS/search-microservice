@@ -50,3 +50,7 @@ search:
     rate-limit:
       enabled: ${SEARCH_RATE_LIMIT_ENABLED:true}
       requests-per-minute: ${SEARCH_RATE_LIMIT_RPM:60}
+  api:
+    query-max-length: ${SEARCH_API_QUERY_MAX_LENGTH:200}
+    pagination-max-page-without-search-after: ${SEARCH_API_PAGINATION_MAX_PAGE:100}
+    es-suggest-max-expansions: ${SEARCH_API_ES_SUGGEST_MAX_EXPANSIONS:10}

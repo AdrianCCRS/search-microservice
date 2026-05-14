@@ -1,6 +1,7 @@
 package presentation.controllers;
 
 import domain.entities.SearchDocument;
+import infrastructure.config.SearchApiProperties;
 import infrastructure.elasticsearch.EsQuerySanitizer;
 import infrastructure.search.CachedSearchService;
 import jakarta.validation.constraints.NotBlank;
@@ -21,6 +22,7 @@ public class SearchController {
 
     private final CachedSearchService cachedSearchService;
     private final EsQuerySanitizer esQuerySanitizer;
+    private final SearchApiProperties searchApiProperties;
 
     @GetMapping
     public List<SearchDocument> search(
@@ -53,14 +55,19 @@ public class SearchController {
         if (query == null || query.isBlank()) {
             throw new IllegalArgumentException("El parámetro 'q' es requerido");
         }
-        if (query.length() > 200) {
-            throw new IllegalArgumentException("El parámetro 'q' no debe exceder 200 caracteres");
+        if (query.length() > searchApiProperties.getQueryMaxLength()) {
+            throw new IllegalArgumentException(
+                    "El parámetro 'q' no debe exceder " + searchApiProperties.getQueryMaxLength() + " caracteres");
         }
     }
 
     private void validatePagination(Integer page, String searchAfter) {
-        if (page != null && page > 100 && (searchAfter == null || searchAfter.isBlank())) {
-            throw new IllegalArgumentException("Para page > 100 debes enviar searchAfter");
+        if (page != null
+                && page > searchApiProperties.getPaginationMaxPageWithoutSearchAfter()
+                && (searchAfter == null || searchAfter.isBlank())) {
+            throw new IllegalArgumentException(
+                    "Para page > " + searchApiProperties.getPaginationMaxPageWithoutSearchAfter()
+                    + " debes enviar searchAfter");
         }
     }
 }

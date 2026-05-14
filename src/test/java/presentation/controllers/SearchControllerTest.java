@@ -1,6 +1,7 @@
 package presentation.controllers;
 
 import domain.entities.SearchDocument;
+import infrastructure.config.SearchApiProperties;
 import infrastructure.elasticsearch.EsQuerySanitizer;
 import infrastructure.search.CachedSearchService;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,7 +31,7 @@ class SearchControllerTest {
         when(esQuerySanitizer.sanitize(anyString())).thenAnswer(inv -> inv.getArgument(0));
 
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new SearchController(cachedSearchService, esQuerySanitizer))
+                .standaloneSetup(new SearchController(cachedSearchService, esQuerySanitizer, new SearchApiProperties()))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
