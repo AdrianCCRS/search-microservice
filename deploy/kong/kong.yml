@@ -55,4 +55,4 @@ consumers:
           nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
           wwIDAQAB
           -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+        secret: "unused-for-rs256"

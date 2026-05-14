@@ -142,6 +142,77 @@ El stack de monitoreo está integrado en el mismo `docker-compose.yml`.
 El dashboard **"Search Microservice"** se provisiona automáticamente en Grafana con 7 paneles:
 latencia P95, cache hit rate Redis, QPS, tasa de errores, latencia Elasticsearch e índice ES.
 
+## Pruebas de carga con k6 y validación de SLA
+
+Se agregaron scripts reproducibles de carga en `tests/load/` para validar los siguientes SLAs:
+- P95 búsqueda < 100 ms
+- P95 autocompletado < 50 ms
+- Error rate < 1%
+- Cache hit rate Redis > 70% (medido desde Grafana/Prometheus durante la ejecución)
+
+### Requisitos previos
+- Docker Compose levantado con `deploy/docker-compose.yml`
+- Keycloak en `http://localhost:8081`
+- Kong en `http://localhost:8000`
+- Elasticsearch en `http://localhost:9200`
+- `curl` y `bash` disponibles
+- `k6` instalado en la máquina local
+
+### Scripts nuevos
+- `tests/load/data-seed.sh`: seed de 100 productos en Elasticsearch
+- `tests/load/auth.js`: helper reusable para obtener JWT desde Keycloak
+- `tests/load/search-load-test.js`: test de carga de búsqueda
+- `tests/load/suggest-load-test.js`: test de carga de autocompletado
+- `tests/load/results/`: carpeta para exportar resultados JSON y métricas resumidas
+
+### Cómo ejecutar el seed de datos
+
+Desde la raíz del repositorio:
+
+```bash
+bash tests/load/data-seed.sh
+```
+
+El script espera a que Elasticsearch responda, crea el índice `products` si no existe, carga 100 documentos y valida el conteo final.
+
+### Cómo ejecutar la prueba de búsqueda
+
+```bash
+k6 run \
+  --out json=tests/load/results/search-results.json \
+  --summary-export=tests/load/results/search-summary.json \
+  tests/load/search-load-test.js
+```
+
+### Cómo ejecutar la prueba de autocompletado
+
+```bash
+k6 run \
+  --out json=tests/load/results/suggest-results.json \
+  --summary-export=tests/load/results/suggest-summary.json \
+  tests/load/suggest-load-test.js
+```
+
+### Variables de entorno opcionales
+
+- `API_URL`: URL de Kong para el servicio Search (por defecto `http://localhost:8000`)
+- `KEYCLOAK_URL`: URL de Keycloak (por defecto `http://localhost:8081`)
+- `KEYCLOAK_REALM`: realm de Keycloak (por defecto `ecommerce`)
+- `KEYCLOAK_CLIENT_ID`: cliente de Keycloak (por defecto `search-client`)
+- `KEYCLOAK_USERNAME`: usuario de pruebas (por defecto `testuser`)
+- `KEYCLOAK_PASSWORD`: contraseña de pruebas (por defecto `testpassword`)
+
+### Cómo interpretar los resultados
+
+- `tests/load/results/search-summary.json`: métricas resumidas de la prueba de búsqueda
+- `tests/load/results/suggest-summary.json`: métricas resumidas de la prueba de autocompletado
+- `tests/load/results/search-results.json`: datos crudos de ejecución de k6 para análisis adicional
+- `tests/load/results/suggest-results.json`: datos crudos de ejecución de k6 para análisis adicional
+
+Para validar SLA, revisa los valores `http_req_duration.p(95)` y `errors.rate` en los archivos `*-summary.json`.
+
+> Nota: la caché Redis se valida indirectamente con el dashboard de Grafana y Prometheus durante la ejecución de la prueba. Busca el panel `cache hit rate Redis` y confirma que supera el 70%.
+
 ---
 
 ## Guía de Despliegue para el Equipo
