@@ -53,3 +53,4 @@ target/
 
 # Mac OS
 .DS_Store
+tests/load/results/*.json
