@@ -1,12 +1,11 @@
 package infrastructure.elasticsearch.config;
 
-import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.event.EventListener;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
@@ -25,19 +24,65 @@ public class ElasticsearchIndexInitializer {
 
     @EventListener(ApplicationReadyEvent.class)
     public void initializeIndex() throws Exception {
+
         boolean indexExists = elasticsearchClient.indices()
-            .exists(e -> e.index(indexName))
-            .value();
+                .exists(e -> e.index(indexName))
+                .value();
 
         if (!indexExists) {
+
             elasticsearchClient.indices().create(c -> c
-                .index(indexName)
-                .settings(s -> s
-                    .numberOfShards(String.valueOf(shards))
-                    .numberOfReplicas(String.valueOf(replicas))
-                )
+                    .index(indexName)
+
+                    .settings(s -> s
+                            .numberOfShards(String.valueOf(shards))
+                            .numberOfReplicas(String.valueOf(replicas))
+                    )
+
+                    .mappings(m -> m
+                            .properties("productId", p -> p
+                                    .keyword(k -> k)
+                            )
+
+                            .properties("name", p -> p
+                                    .text(t -> t
+                                            .analyzer("spanish")
+                                            .fields("keyword", f -> f
+                                                    .keyword(k -> k)
+                                            )
+                                    )
+                            )
+
+                            .properties("description", p -> p
+                                    .text(t -> t
+                                            .analyzer("spanish")
+                                    )
+                            )
+
+                            .properties("category", p -> p
+                                    .keyword(k -> k)
+                            )
+
+                            .properties("brand", p -> p
+                                    .keyword(k -> k)
+                            )
+
+                            .properties("price", p -> p
+                                    .float_(f -> f)
+                            )
+
+                            .properties("rating", p -> p
+                                    .float_(f -> f)
+                            )
+
+                            .properties("available", p -> p
+                                    .boolean_(b -> b)
+                            )
+                    )
             );
+
             System.out.println("Índice '" + indexName + "' creado correctamente en Elasticsearch.");
+
         } else {
             System.out.println("Índice '" + indexName + "' ya existe.");
         }
