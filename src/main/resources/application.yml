@@ -1,9 +1,11 @@
 spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
   elasticsearch:
     uris: ${ELASTICSEARCH_URI:http://localhost:9200}
   data:
-    mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/search_db}
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}

@@ -13,12 +13,17 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Use a non-root user for security
+RUN apk add --no-cache netcat-openbsd
+
+COPY wait-for-services.sh .
+RUN chmod +x wait-for-services.sh
+
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
 
 COPY --from=builder /app/target/search-microservice-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+USER appuser
+
+ENTRYPOINT ["./wait-for-services.sh"]
