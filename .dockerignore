@@ -1,0 +1,56 @@
+# Maven build artifacts
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Tests
+src/test/
+
+# Deployment configs (mounted separately)
+deploy/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Node (if any frontend tooling present)
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (use .env at runtime, not baked in)
+.env
+.env.*
+!.env.example
+
+# Temporary files
+*.log
+*.tmp
+tmp/
+
+# External repos brought for reference
+cart-microservice/
+Proyecto-Software-2---Catalogo/
+
+# Agent skills
+.agents/
