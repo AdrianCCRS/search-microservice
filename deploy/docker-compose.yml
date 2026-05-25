@@ -58,6 +58,25 @@ services:
       retries: 5
     restart: always
 
+  # Frontend (nginx + static files, bypasses Kong JWT)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: search_frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - search-api
+    networks:
+      - search-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: always
+
 # Placeholder for upcoming services
 # Kong, Keycloak...
 
@@ -123,8 +142,6 @@ services:
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro,z
     depends_on:
-      frontend:
-        condition: service_healthy
       keycloak:
         condition: service_healthy
     networks:
