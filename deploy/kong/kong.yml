@@ -2,15 +2,23 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  - name: frontend-service
+    url: http://frontend:80
+    routes:
+      - name: frontend-route
+        methods: [GET]
+        paths:
+          - /
+
   - name: search-service
     url: http://search-api:8080
     plugins:
-      - name: jwt
-        config:
-          key_claim_name: iss
-          claims_to_verify:
-            - exp
-          run_on_preflight: true
+      # - name: jwt
+      #   config:
+      #     key_claim_name: iss
+      #     claims_to_verify:
+      #       - exp
+      #     run_on_preflight: true
       - name: rate-limiting
         config:
           minute: 60
