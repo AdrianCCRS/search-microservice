@@ -2,24 +2,37 @@ _format_version: "3.0"
 _transform: true
 
 services:
-  - name: search-service
-    url: http://search-api:8080
+  # Frontend: nginx sirve estáticos y proxy /api/search a search-api
+  - name: frontend-service
+    url: http://frontend:80
     routes:
-      - name: search-route
+      - name: frontend-route
         methods: [GET]
         paths:
-          - /api/search
-      - name: suggest-route
-        methods: [GET]
-        paths:
-          - /api/search/suggest
-    plugins:
-      - name: jwt
-        config:
-          key_claim_name: iss
-          claims_to_verify:
-            - exp
-          run_on_preflight: true
+          - /
+
+  # API Search protegida con JWT para consumidores externos.
+  # Para desarrollo/demo, el frontend usa nginx como proxy sin JWT.
+  # Descomentar las rutas de abajo cuando se quiera exponer la API
+  # con autenticación JWT a clientes externos.
+  # - name: search-service
+  #   url: http://search-api:8080
+  #   routes:
+  #     - name: search-route
+  #       methods: [GET]
+  #       paths:
+  #         - /api/search
+  #     - name: suggest-route
+  #       methods: [GET]
+  #       paths:
+  #         - /api/search/suggest
+  #   plugins:
+  #     - name: jwt
+  #       config:
+  #         key_claim_name: iss
+  #         claims_to_verify:
+  #           - exp
+  #         run_on_preflight: true
 
 consumers:
   - username: keycloak-issuer
@@ -41,4 +54,4 @@ consumers:
           nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
           wwIDAQAB
           -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+        secret: "unused-for-rs256"
