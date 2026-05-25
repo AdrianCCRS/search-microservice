@@ -11,7 +11,6 @@ services:
           claims_to_verify:
             - exp
           run_on_preflight: true
-      # 1. Dejamos la limitación por IP ligada a nivel de todo el servicio
       - name: rate-limiting
         config:
           minute: 60
@@ -24,7 +23,7 @@ services:
         methods: [GET]
         paths:
           - /api/search
-        # 2. Movemos la limitación por Consumidor de forma independiente a la ruta de búsqueda
+        strip_path: false # <--- ¡Añade esto aquí!
         plugins:
           - name: rate-limiting
             config:
@@ -37,7 +36,7 @@ services:
         methods: [GET]
         paths:
           - /api/search/suggest
-        # 3. Hacemos lo mismo para la ruta de sugerencias
+        strip_path: false # <--- ¡Añade esto aquí también!
         plugins:
           - name: rate-limiting
             config:
@@ -52,8 +51,6 @@ consumers:
     jwt_secrets:
       - key: "http://localhost:8081/realms/ecommerce"
         algorithm: RS256
-        # FASE 2: Reemplazar este placeholder por la clave real obtenida de:
-        # curl http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
           MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzSMM2CzjIyPHTaUIEg4
