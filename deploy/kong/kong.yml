@@ -4,15 +4,6 @@ _transform: true
 services:
   - name: search-service
     url: http://search-api:8080
-    routes:
-      - name: search-route
-        methods: [GET]
-        paths:
-          - /api/search
-      - name: suggest-route
-        methods: [GET]
-        paths:
-          - /api/search/suggest
     plugins:
       - name: jwt
         config:
@@ -20,20 +11,41 @@ services:
           claims_to_verify:
             - exp
           run_on_preflight: true
+      # 1. Dejamos la limitación por IP ligada a nivel de todo el servicio
       - name: rate-limiting
         config:
-          minute: ${KONG_RATE_LIMIT_MINUTE:-60}
-          limit_by: consumer
-          policy: local
-          fault_tolerant: true
-          hide_client_headers: false
-      - name: rate-limiting
-        config:
-          minute: ${KONG_RATE_LIMIT_MINUTE:-60}
+          minute: 60
           limit_by: ip
           policy: local
           fault_tolerant: true
           hide_client_headers: false
+    routes:
+      - name: search-route
+        methods: [GET]
+        paths:
+          - /api/search
+        # 2. Movemos la limitación por Consumidor de forma independiente a la ruta de búsqueda
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              limit_by: consumer
+              policy: local
+              fault_tolerant: true
+              hide_client_headers: false
+      - name: suggest-route
+        methods: [GET]
+        paths:
+          - /api/search/suggest
+        # 3. Hacemos lo mismo para la ruta de sugerencias
+        plugins:
+          - name: rate-limiting
+            config:
+              minute: 60
+              limit_by: consumer
+              policy: local
+              fault_tolerant: true
+              hide_client_headers: false
 
 consumers:
   - username: keycloak-issuer
@@ -42,9 +54,6 @@ consumers:
         algorithm: RS256
         # FASE 2: Reemplazar este placeholder por la clave real obtenida de:
         # curl http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs
-        # y convertirla con: https://8gwifi.org/jwkconvertfunctions.jsp
-        # NOTA: Este PEM dummy es sintacticamente valido para que Kong arranque sin errores.
-        # Mientras la clave sea dummy, Kong arrancara pero rechazara todos los tokens (401).
         rsa_public_key: |
           -----BEGIN PUBLIC KEY-----
           MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzSMM2CzjIyPHTaUIEg4
@@ -55,4 +64,4 @@ consumers:
           nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
           wwIDAQAB
           -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+        secret: "unused-for-rs256"
