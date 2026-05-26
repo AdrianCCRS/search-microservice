@@ -12,12 +12,12 @@ services:
   - name: search-service
     url: http://search-api:8080
     plugins:
-      # - name: jwt
-      #   config:
-      #     key_claim_name: iss
-      #     claims_to_verify:
-      #       - exp
-      #     run_on_preflight: true
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify:
+            - exp
+          run_on_preflight: true
       - name: rate-limiting
         config:
           minute: 60
@@ -56,6 +56,11 @@ services:
   - name: catalog-service
     url: http://catalog_api:5290
     routes:
+      - name: catalog-auth-route
+        methods: [POST]
+        paths:
+          - /api/auth
+        strip_path: false
       - name: catalog-api-route
         methods: [GET, POST, PUT, PATCH, DELETE]
         paths:
@@ -91,18 +96,8 @@ services:
         strip_path: false
 
 consumers:
-  - username: keycloak-issuer
+  - username: catalog-service
     jwt_secrets:
-      - key: "http://localhost:8081/realms/ecommerce"
-        algorithm: RS256
-        rsa_public_key: |
-          -----BEGIN PUBLIC KEY-----
-          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzSMM2CzjIyPHTaUIEg4
-          78JPvOOl/7p6oVZZMolBSGdxfbZf5TMU2CQH9lqZegSRed1e0hAXQjv0oCr4Xn5H
-          x+mwH5gK/017ePuL6zeY8gvJtDa7ZkA1M5UW7MSwfbSNTwQE9GAQvaWBcmLtRoDg
-          FuOOHE0E6V9bRDiKTG/trQq880XCghJO1sH7qf+2riw6Zg04YGeHPrc7613D3I9I
-          5WU1DYedC/LXMgO9UBG2S4KKKw4Lh3aFm2fZEqNhVVhKacKrs+sSm8cZklAtHivn
-          nhoG5FnS5HMGdHe6+4Yu7BDkXsUNc8L/iu9Ji5RvJuDJI3KwSOpYw13JPf/oNDsP
-          wwIDAQAB
-          -----END PUBLIC KEY-----
-        secret: "unused-for-rs256"
+      - key: "CatalogService"
+        algorithm: HS256
+        secret: "your-secret-key-min-32-characters-long-for-hs256"
