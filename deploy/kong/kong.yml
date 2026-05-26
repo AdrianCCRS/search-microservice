@@ -61,6 +61,11 @@ services:
         paths:
           - /api/v1/catalog
         strip_path: false
+      - name: catalog-images-route
+        methods: [GET]
+        paths:
+          - /images
+        strip_path: false
       - name: catalog-health-route
         methods: [GET]
         paths:
