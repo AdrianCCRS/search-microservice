@@ -1,95 +1,193 @@
 # Search Microservice
 
-Este repositorio implementa el **Search Microservice** del sistema de e-commerce orientado a microservicios.
+Search Microservice del sistema de e-commerce orientado a microservicios. Implementa el **read model CQRS**: consume eventos del Catalog, construye `SearchDocument`s, los indexa en Elasticsearch, cachea lecturas frecuentes en Redis y expone APIs de búsqueda a través de Kong API Gateway.
 
 ## Arquitectura
 
-El servicio sigue los principios de **Clean Architecture** y está separado en las siguientes capas:
-- `domain`
-- `application`
-- `infrastructure`
-- `presentation`
+El servicio sigue los principios de **Clean Architecture** y se organiza en cuatro capas:
 
-## Tecnologías Principales (Sprint 1)
-- Java 17 & Spring Boot 3.1
-- Docker & Docker Compose
-- Redis 7.0 (Caché)
-- RabbitMQ 3.12 (Mensajería dirigida por eventos - Topic Exchange & DLQ)
-- Elasticsearch 8.11 (Motor principal de búsqueda)
-- MongoDB 6.0 (Base de datos del servicio de lectura)
+| Capa | Responsabilidad |
+|---|---|
+| `domain` | Entidades de dominio y contratos (sin dependencias de framework) |
+| `application` | Casos de uso, orquestación, DTOs/eventos de aplicación, puertos de entrada/salida |
+| `infrastructure` | Adaptadores: Redis, Elasticsearch, RabbitMQ, seguridad, cache |
+| `presentation` | Controladores REST, DTOs HTTP, configuración y entrypoint |
 
-Tambien incluye Kong como API Gateway y Keycloak como proveedor de identidad para el entorno local.
+**Patrón CQRS:** Este servicio es el lado de lectura. El Catalog es el source of truth transaccional y dueño de las escrituras.
+
+### Multi-Service Ecosystem
+
+Kong API Gateway unifica el routing hacia todos los microservicios del ecosistema:
+
+```
+                    ┌─────────────┐
+                    │    Kong      │
+                    │   :8000      │
+                    └──┬──┬──┬──┬──┘
+          ┌───────────┘  │  │  │  └────────────┐
+          ▼              ▼  │  ▼               ▼
+   ┌──────────┐  ┌──────────┐┌──────────┐ ┌──────────┐
+   │ Frontend │  │  Search  ││ Catalog  │ │   Cart   │
+   │   :80    │  │  :8080   ││  :5290   │ │  :8000   │
+   └──────────┘  └──────────┘└──────────┘ └──────────┘
+```
+
+## Tecnologías
+
+| Tecnología | Versión | Propósito |
+|---|---|---|
+| Java + Spring Boot | 17 + 3.1.5 | Runtime y framework base |
+| Elasticsearch | 8.11.3 | Motor de búsqueda full-text |
+| Redis | 7.0 | Caché de queries y sugerencias |
+| RabbitMQ | 3.12 | Mensajería de eventos (Topic Exchange + DLQ) |
+| Kong | 3.5 | API Gateway (DB-less, config declarativa) |
+| Keycloak | 23.0 | Identity Provider (JWT RS256) |
+| Prometheus | 2.51 | Métricas y scraping |
+| Grafana | 10.4 | Dashboards de observabilidad |
+| Nginx | Alpine | Servidor de la UI frontend |
+| Maven | 3.9 | Build y gestión de dependencias |
+
+## Servicios y Puertos
+
+| Servicio | Contenedor | Puerto local | Puerto interno | Acceso |
+|---|---|---|---|---|
+| Kong API Gateway | `search_kong` | 8000, 8001 | 8000, 8001 | `http://localhost:8000` |
+| Search API | `deploy-search-api-1` | 8085 | 8080 | `http://localhost:8085` |
+| Frontend UI | `search_frontend` | — | 80 | `http://localhost:8000/` via Kong |
+| Catalog API | `catalog_api` | 5290 | 5290 | `http://localhost:8000/api/v1/catalog` via Kong |
+| Cart API | `cart_api` | — | 8000 | `http://localhost:8000/api/cart` via Kong |
+| Keycloak | `search_keycloak` | 8081 | 8080 | `http://localhost:8081` |
+| Elasticsearch | `search_elasticsearch` | 9200 | 9200 | `http://localhost:9200` |
+| Redis | `search_redis` | 6379 | 6379 | `redis-cli` (autenticado) |
+| RabbitMQ | `search_rabbitmq` | 5672, 15672 | 5672, 15672 | `http://localhost:15672` |
+| Prometheus | `search_prometheus` | 9090 | 9090 | `http://localhost:9090` |
+| Grafana | `search_grafana` | 3000 | 3000 | `http://localhost:3000` |
+
+## API Endpoints
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/search?q={query}&page=0&size=10` | JWT | Búsqueda full-text con paginación |
+| `GET` | `/api/search/suggest?q={prefix}` | JWT | Sugerencias de autocompletado |
+| `GET` | `/actuator/health` | — | Health check |
+| `GET` | `/actuator/prometheus` | — | Métricas en formato Prometheus |
+
+**Parámetros de búsqueda:**
+
+| Parámetro | Tipo | Default | Descripción |
+|---|---|---|---|
+| `q` | string | requerido | Texto de búsqueda (max 200 caracteres) |
+| `page` | int | 0 | Página de resultados |
+| `size` | int | 10 | Resultados por página |
+
+> Las queries son sanitizadas automáticamente por `EsQuerySanitizer` antes de llegar a Elasticsearch.
+
+## Flujo de Eventos CQRS
+
+```
+Catalog Service ──(publica eventos)──▶ RabbitMQ (exchange: catalog.events)
+                                           │
+                          ┌────────────────┼────────────────┐
+                          ▼                                 ▼
+           search.product.created              search.product.updated
+                          │                                 │
+                          ▼                                 ▼
+           ProductCreatedConsumer             ProductUpdatedConsumer
+           (indexa en Elasticsearch)          (invalida cache Redis)
+                                                         │
+                                              search.dead.letter (DLQ)
+```
+
+- **Consumidores** usan acknowledge manual (`AcknowledgeMode.MANUAL`)
+- **Errores** son nackeados explícitamente hacia la DLQ `search.dead.letter`
+- **Retry** con backoff exponencial configurado en `application.yml` (3 intentos, intervalo inicial 5s, multiplicador 3x)
+
+## Estrategia de Cache (Redis)
+
+| Tipo | Key pattern | TTL |
+|---|---|---|
+| Resultados de búsqueda | `search:query:{SHA-256(query normalizada)}` | 1 min |
+| Sugerencias | `search:suggest:{query normalizada}` | 5 min |
+| Producto individual | `search:product:{productId}` | — (invalidado por eventos) |
+
+- **Normalización de query:** trim, colapso de espacios, lowercase
+- **Invalidación:** el consumidor `ProductUpdatedConsumer` invalida tanto el cache del producto específico como todas las queries cacheadas que coincidan con los patrones de búsqueda y sugerencias
+
+## Kong API Gateway — Rutas
+
+| Ruta | Métodos | Servicio upstream | Auth |
+|---|---|---|---|
+| `/` | GET | Frontend (nginx:80) | Pública |
+| `/api/search` | GET | Search API | JWT |
+| `/api/search/suggest` | GET | Search API | JWT |
+| `/api/v1/catalog` | GET, POST, PUT, PATCH, DELETE | Catalog API | Pública (con auth interna) |
+| `/api/auth` | POST | Catalog API | Pública |
+| `/images` | GET | Catalog API | Pública |
+| `/health` | GET | Catalog API | Pública |
+| `/catalog` | GET | Catalog Frontend | Pública |
+| `/api/cart` | GET, POST, PUT, DELETE | Cart API | Pública (con auth interna) |
+
+**Plugins activos en Search API:**
+- `jwt` — Validación de firma RSA (Keycloak), claim `iss`, verificación de `exp`
+- `rate-limiting` — 60 req/min por consumer (JWT) + 60 req/min por IP, política `local`, fault-tolerant
+
+## Frontend
+
+Incluye una UI de búsqueda (`frontend/`) servida con nginx, expuesta en `http://localhost:8000/` a través de Kong:
+
+- Campo de búsqueda con autocompletado en tiempo real (endpoint `/api/search/suggest`)
+- Resultados con nombre, descripción, categoría, precio, rating y marca
+- Búsqueda por tecla Enter y botón, debounce de 250ms en sugerencias
+- Diseño responsive sin frameworks externos (HTML5 + CSS3 + vanilla JS)
 
 ## Arranque Local
 
-1. Clona el repositorio
-   ```bash
-   git clone <repo-url>
-   cd search-microservice
-   ```
+### Requisitos previos
 
-2. Configura las variables de entorno
-   ```bash
-   cd deploy
-   cp .env.example .env
-   ```
-   *Nota: edita `.env` con las contraseñas requeridas, por defecto en local puedes usar los valores de ejemplo.*
+- Docker y Docker Compose instalados
+- Git
 
-3. Levanta los servicios completos y compila la API
-   ```bash
-   cd deploy
-   docker compose up -d --build
-   ```
-   **Este comando:**
-   - Levantará los contenedores de Redis, MongoDB, Elasticsearch y RabbitMQ.
-   - Compilará tu código Java Spring Boot con Maven usando un contenedor de primera fase.
-   - Creará y arrancará el contenedor `deploy-search-api` (expuesto en puerto local `8085`).
+### Inicio rápido
 
-4. Verifica el estado
-   ```bash
-   docker compose ps
-   ```
-   O supervisa los logs en tiempo real de la API de Search:
-   ```bash
-   docker compose logs -f search-api
-   ```
+```bash
+git clone https://github.com/AdrianCCRS/search-microservice.git
+cd search-microservice
+cd deploy && cp .env.example .env && cd ..
+docker compose -f deploy/docker-compose.yml up -d --build
+```
 
-5. Interactuar con RabbitMQ (Mensajería)
-   - Panel de Control Web: `http://localhost:15672` (Usuario: `guest`, Password: `guest`)
-   - Revisa aquí las colas `search.product.created` y `search.product.updated`.
+> Keycloak tarda ~90 segundos en estar listo. Kong espera automáticamente a que Keycloak esté healthy.
 
-6. Interactuar con Redis
-   Para comprobar que Redis se está ejecutando y requiere autenticación, puedes entrar a su CLI:
-   ```bash
-   docker exec -it search_redis redis-cli
-   ```
-   Una vez dentro, ingresa la contraseña definida en tu `.env` (o la por defecto `redis_secure_pass_123`):
-   ```text
-   127.0.0.1:6379> AUTH redis_secure_pass_123
-   OK
-   127.0.0.1:6379> PING
-   PONG
-   ```
+### Verificar estado
 
-## Estructura del Repositorio
+```bash
+docker compose -f deploy/docker-compose.yml ps
+docker compose -f deploy/docker-compose.yml logs -f search-api
+```
 
-- `src/main/java/` — Código fuente Spring Boot organizado por capas
-- `src/main/resources/` — Configuración de la aplicación
-- `src/test/java/` — Pruebas unitarias y de integración
-- `Dockerfile` — Imagen principal del microservicio Search
-- `deploy/` — Archivos para despliegue:
-  - `docker-compose.yml` — Todos los servicios del entorno
-  - `kong/kong.yml` — Configuración declarativa de Kong (rutas + JWT)
-  - `keycloak/realm-export.json` — Realm ecommerce con usuarios y clientes
-  - `prometheus/` — Configuración de scraping y alertas
-  - `grafana/` — Dashboards y datasources auto-provisionados
-- `docs/` — Documentación del proyecto
+### Acceder a servicios
 
-## Flujo de Autenticación JWT (Kong + Keycloak)
+| Servicio | URL | Credenciales |
+|---|---|---|
+| Frontend UI | `http://localhost:8000/` | — |
+| Search API (directo) | `http://localhost:8085` | JWT Bearer |
+| RabbitMQ Management | `http://localhost:15672` | guest / guest |
+| Grafana | `http://localhost:3000` | admin / admin123 |
+| Prometheus | `http://localhost:9090` | — |
+| Keycloak Admin | `http://localhost:8081` | admin / admin |
 
-Se implementó autenticación JWT utilizando Kong como API Gateway (plugin estático JWT) y Keycloak como Identity Provider. **La implementación está completamente validada en runtime.**
+### Interactuar con Redis
 
-### Arquitectura
+```bash
+docker exec -it search_redis redis-cli
+# > AUTH redis_secure_pass_123
+# > PING
+# PONG
+```
+
+## Autenticación JWT (Kong + Keycloak)
+
+### Diagrama
 
 ```
 Cliente → Kong :8000 → (valida JWT con clave RSA) → Search API :8080
@@ -98,195 +196,138 @@ Cliente → Kong :8000 → (valida JWT con clave RSA) → Search API :8080
          (emite tokens)
 ```
 
-1. **`search-client`** — Cliente público de Keycloak para obtener tokens (`grant_type=password`)
-2. **`search-service`** — Cliente bearer-only (solo valida tokens, no los emite)
-3. **Kong** — Valida la firma RSA del JWT con el plugin `jwt` nativo (Kong OSS no incluye `openid-connect`)
-4. **Search API** — Recibe requests ya validadas; no necesita procesar JWT directamente
-
-### Rutas protegidas
-
-| Endpoint | Sin token | Con token válido |
-|---|---|---|
-| `GET /api/search?q=...` | 401 Unauthorized | 200 OK |
-| `GET /api/search/suggest?q=...` | 401 Unauthorized | 200 OK |
-
 ### Obtener token y consumir la API
 
 ```bash
-# 1. Obtener token de Keycloak
+# Obtener token
 TOKEN=$(curl -s -X POST http://localhost:8081/realms/ecommerce/protocol/openid-connect/token \
   -d "grant_type=password" \
   -d "client_id=search-client" \
   -d "username=testuser" \
   -d "password=testpassword" | jq .access_token -r)
 
-# 2. Llamada exitosa con token (200 OK)
+# Con token (200 OK)
 curl -i -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/search?q=laptop"
 
-# 3. Llamada sin token (401 Unauthorized)
+# Sin token (401 Unauthorized)
 curl -i "http://localhost:8000/api/search?q=laptop"
 ```
 
----
+| Endpoint | Sin token | Con token válido |
+|---|---|---|
+| `GET /api/search?q=...` | 401 | 200 |
+| `GET /api/search/suggest?q=...` | 401 | 200 |
+
+> La Search API recibe requests ya validadas por Kong — no procesa JWT directamente.
+
+### Nota sobre la clave RSA
+
+La clave RSA en `deploy/kong/kong.yml` es generada por Keycloak al arrancar. Si usas `docker compose down`, Keycloak genera una nueva clave y debes actualizarla manualmente. Con `docker compose up -d` (sin `down`) los volúmenes persisten y la clave se mantiene.
 
 ## Observabilidad (Prometheus + Grafana)
 
-El stack de monitoreo está integrado en el mismo `docker-compose.yml`.
+Stack de monitoreo integrado en `docker-compose.yml`:
 
-| Servicio | URL | Credenciales |
-|---|---|---|
-| Grafana | http://localhost:3000 | admin / admin123 |
-| Prometheus | http://localhost:9090 | — |
-| Actuator métricas | http://localhost:8085/actuator/prometheus | — |
+- **Prometheus:** Scrapea métricas de `search-api` (Actuator) y `elasticsearch-exporter`
+- **Grafana:** Dashboard **"Search Microservice"** auto-provisionado con 7 paneles:
+  - Latencia P95, cache hit rate Redis, QPS, tasa de errores, latencia Elasticsearch, tamaño de índice, duración de indexación
+- **Alertas:** P95 > 100ms, cache hit rate < 70%
+- **Elasticsearch Exporter:** Métricas de índices, shards y nodos ES
 
-El dashboard **"Search Microservice"** se provisiona automáticamente en Grafana con 7 paneles:
-latencia P95, cache hit rate Redis, QPS, tasa de errores, latencia Elasticsearch e índice ES.
+## GCP Deployment
 
----
+Consulta la guía completa de despliegue en Google Cloud Platform:
+[`docs/gcp-deployment-guide.md`](docs/gcp-deployment-guide.md)
 
-## Guía de Despliegue para el Equipo
-
-> **Lee esto antes de empezar cualquier tarea del sprint.**
-
-### Requisitos previos
-
-- Docker Desktop instalado y corriendo
-- Git configurado con tu cuenta de GitHub
-- PowerShell o bash disponible
-
-### Paso 1 — Clonar y posicionarse en la rama correcta
-
-```bash
-git clone https://github.com/AdrianCCRS/search-microservice.git
-cd search-microservice
-git checkout feauture/T-01-JWT-kong+keycloak   # rama del sprint actual
-```
-
-### Paso 2 — Configurar variables de entorno
-
-```bash
-cd deploy
-cp .env.example .env
-# No necesitas cambiar nada para entorno local; los valores por defecto funcionan
-```
-
-### Paso 3 — Levantar el entorno completo
-
-```bash
-# Desde la raíz del proyecto:
-docker compose -f deploy/docker-compose.yml up -d --build
-```
-
-Este comando levanta **todos** los servicios:
-`search-api`, `redis`, `mongodb`, `elasticsearch`, `rabbitmq`, `keycloak`, `kong`, `elasticsearch-exporter`, `prometheus`, `grafana`
-
-> ⚠️ **Keycloak tarda ~90 segundos en estar listo.** Kong espera automáticamente a que esté healthy antes de arrancar.
-
-### Paso 4 — Verificar que todo está running
-
-```bash
-docker ps --format "table {{.Names}}\t{{.Status}}"
-```
-
-Todos los servicios deben aparecer como `Up (healthy)` o `Up`.
-
-### Paso 5 — Verificar la autenticación JWT
-
-```bash
-# Debe retornar 401:
-curl -i http://localhost:8000/api/search?q=test
-
-# Obtener token y probar con auth:
-TOKEN=$(curl -s -X POST http://localhost:8081/realms/ecommerce/protocol/openid-connect/token \
-  -d "grant_type=password&client_id=search-client&username=testuser&password=testpassword" \
-  | jq .access_token -r)
-curl -i -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/search?q=test"
-```
-
-### Paso 6 — Verificar Grafana
-
-Abre http://localhost:3000 → Login con `admin` / `admin123` → Busca el dashboard **"Search Microservice"**.
-
-### Ver logs de la API
-
-```bash
-docker compose -f deploy/docker-compose.yml logs -f search-api
-```
-
-### Detener el entorno
-
-```bash
-docker compose -f deploy/docker-compose.yml down
-# Para también eliminar volúmenes (datos):
-docker compose -f deploy/docker-compose.yml down -v
-```
-
----
-
-## ⚠️ Nota sobre la clave RSA en kong.yml
-
-La clave RSA pública en `deploy/kong/kong.yml` es la **clave real generada por Keycloak** en el momento del despliegue de este sprint. Keycloak genera una nueva clave cada vez que arranca con `KC_DB=dev-mem` (base de datos en memoria).
-
-**Esto significa:** si borras el contenedor de Keycloak (`docker compose down`) y lo vuelves a levantar, Keycloak generará una clave RSA diferente y Kong comenzará a rechazar todos los tokens con `401`.
-
-**Para regenerar la clave después de un `docker compose down`:**
-
-```bash
-# 1. Levanta los servicios sin Kong
-docker compose -f deploy/docker-compose.yml up -d --no-deps keycloak
-
-# 2. Espera ~90s a que Keycloak esté listo, luego extrae la nueva clave
-# En PowerShell:
-$jwks = (Invoke-WebRequest -Uri "http://localhost:8081/realms/ecommerce/protocol/openid-connect/certs" -UseBasicParsing | ConvertFrom-Json).keys | Where-Object { $_.use -eq "sig" }
-# Luego actualiza la clave en deploy/kong/kong.yml y reinicia Kong
-
-# O usa el script de validación incluido en docs/
-```
-
-> 💡 **Para el sprint:** si usas `docker compose up -d` (sin `down`) los volúmenes persisten y la clave no cambia. El problema solo ocurre al hacer `docker compose down`.
-
----
+Incluye:
+- Compute Engine VM (`e2-standard-4`) con Docker Compose
+- Setup completo: clonado, variables de entorno, build y despliegue
+- Configuración de IP estática externa y firewall rules
 
 ## Security Policies
 
 ### Rate Limiting
 
-**Kong Gateway (primary):** The `rate-limiting` plugin is applied on both `search-route` and `suggest-route`, enforcing limits by Consumer (JWT) and IP address simultaneously. 
+Dos capas de rate limiting:
 
-| Setting | Value | Environment Variable |
-|---------|-------|---------------------|
-| Requests per minute | 60 | `KONG_RATE_LIMIT_MINUTE` |
-| Policy | `local` | — |
-| Fault tolerant | `true` | — |
+| Capa | Mecanismo | Configuración |
+|---|---|---|
+| Kong Gateway | Plugin `rate-limiting` por consumer + IP | 60 req/min, política `local` |
+| Spring Boot | `RateLimitInterceptor` | `search.security.rate-limit.enabled` (default `true`), `search.security.rate-limit.requests-per-minute` (default `60`) |
 
-When the limit is exceeded, Kong returns `429 Too Many Requests`.
-
-**Spring Boot (defense-in-depth):** A `RateLimitInterceptor` provides a secondary rate limit layer at the application level, configurable via:
-- `search.security.rate-limit.enabled` (default: `true`)
-- `search.security.rate-limit.requests-per-minute` (default: `60`)
-
-Uses `X-Forwarded-For` header (set by Kong) for client identification, falling back to `RemoteAddr`.
+Exceder el límite → HTTP 429.
 
 ### Input Validation
 
-| Constraint | Annotation | Error Response |
-|-----------|-----------|---------------|
-| Query must not be blank | `@NotBlank` | 400 Bad Request |
-| Query length ≤ 200 characters | `@Size(max=200)` | 400 Bad Request |
-| Page > 100 requires `searchAfter` | manual check | 400 Bad Request |
-
-Validation is enforced through both Spring Bean Validation (`@Validated` + Jakarta annotations) and programmatic checks in the controller for defense-in-depth.
+| Regla | Mecanismo | Respuesta |
+|---|---|---|
+| Query requerida | `@NotBlank` (Jakarta) | 400 |
+| Query ≤ 200 chars | `@Size(max=200)` + chequeo programático | 400 |
+| Page > 100 sin `searchAfter` | Chequeo programático | 400 |
 
 ### Elasticsearch DSL Injection Protection
 
-All ES queries use the `co.elastic.clients.elasticsearch.ElasticsearchClient` typed DSL builder (`multi_match` for search, `match_phrase_prefix` for suggestions). User input is never concatenated into raw query strings.
-
-**Additional defense-in-depth:** An `EsQuerySanitizer` strips ES-special characters (`*`, `?`, `~`, `^`, `{`, `}`, `[`, `]`, `(`, `)`, `:`, `\`, `/`, `"`, `+`, `-`, `=`, `>`, `<`, `!`, `&`, `|`) from user queries before they reach Elasticsearch. This prevents wildcard expansion, fuzziness manipulation, and query DSL injection attempts even if the query builder approach were accidentally changed in the future.
+- Queries construidas exclusivamente con `ElasticsearchClient` typed DSL builder
+- `EsQuerySanitizer` remueve caracteres especiales de ES (`*`, `?`, `~`, `^`, `{`, `}`, `[`, `]`, etc.) como capa adicional de defensa
 
 ### Error Response Format
 
-| HTTP Status | Scenario | Response Body |
-|-------------|----------|---------------|
-| 400 | Invalid/missing parameters | `{"error": "<message>"}` |
-| 429 | Rate limit exceeded | `{"error": "Demasiadas solicitudes..."}` |
-| 500 | Internal errors | `{"error": "Error interno del servidor"}` |
+| Status | Escenario | Body |
+|---|---|---|
+| 400 | Parámetros inválidos | `{"error": "mensaje"}` |
+| 429 | Rate limit excedido | `{"error": "Demasiadas solicitudes..."}` |
+| 500 | Error interno | `{"error": "Error interno del servidor"}` |
+
+## Testing
+
+```bash
+# Todos los tests (sin necesidad de Docker Compose)
+mvn test
+
+# Un test específico
+mvn -Dtest=ProductCreatedConsumerTest test
+
+# A través de Docker
+docker run --rm -v "$(pwd)":/app -w /app maven:3.9.6-eclipse-temurin-17 mvn test
+```
+
+Los tests son unitarios con Mockito; no requieren servicios externos.
+
+## Documentación
+
+| Documento | Descripción |
+|---|---|
+| [`docs/gcp-deployment-guide.md`](docs/gcp-deployment-guide.md) | Guía de despliegue en Google Cloud |
+| [`docs/plan-pruebas-funcionales.md`](docs/plan-pruebas-funcionales.md) | Plan de pruebas funcionales (caja negra, 14 casos) |
+| [`docs/sprints/walkthrough-T01-T02.md`](docs/sprints/walkthrough-T01-T02.md) | Walkthrough de JWT + Observabilidad |
+| [`docs/sprint-4-tarea-3/summary.md`](docs/sprint-4-tarea-3/summary.md) | Resumen de implementación de seguridad |
+| [`docs/sprints/sprint-1-implementations.md`](docs/sprints/sprint-1-implementations.md) | Implementaciones del Sprint 1 |
+| [`AGENTS.md`](AGENTS.md) | Guía para agentes de IA que trabajen en el proyecto |
+| [`deploy/`](deploy/) | Configuración de despliegue completa |
+
+## Estructura del Repositorio
+
+```
+.
+├── src/main/java/                  # Código fuente Java
+│   ├── domain/entities/            # SearchDocument
+│   ├── application/                # Use cases, events, ports
+│   ├── infrastructure/             # Redis, ES, RabbitMQ, seguridad
+│   └── presentation/               # Controllers, advice, app entrypoint
+├── src/main/resources/             # application.yml
+├── src/test/java/                  # Tests unitarios
+├── frontend/                       # UI de búsqueda (nginx + static)
+├── deploy/                         # Infraestructura como código
+│   ├── docker-compose.yml          # Stack completo de servicios
+│   ├── .env.example                # Template de variables de entorno
+│   ├── kong/kong.yml               # API Gateway declarativo
+│   ├── keycloak/realm-export.json  # Realm ecommerce
+│   ├── prometheus/                 # Scraping + alertas
+│   ├── grafana/                    # Dashboards + datasources
+│   ├── elasticsearch/mappings/     # Mapping de search document
+│   └── rabbitmq/                   # Definiciones de queues
+├── docs/                           # Documentación
+├── Dockerfile                      # Imagen del microservicio
+├── pom.xml                         # Maven project descriptor
+└── AGENTS.md                       # Instrucciones para agentes de IA
+```
